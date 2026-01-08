@@ -1,0 +1,49 @@
+{
+  "name": "claude-voice",
+  "version": "0.1.0",
+  "description": "Voice mode for Claude Code - talk to Claude with push-to-talk",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "claude-voice": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "claude",
+    "anthropic",
+    "voice",
+    "speech-to-text",
+    "text-to-speech",
+    "cli",
+    "ai"
+  ],
+  "author": "Matt Moore",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "node-pty": "^1.0.0",
+    "openai": "^4.77.0",
+    "ora": "^8.1.1",
+    "speaker": "^0.5.5",
+    "uiohook-napi": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
