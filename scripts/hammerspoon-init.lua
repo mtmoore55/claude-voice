@@ -8,13 +8,75 @@ local VOICE_DAEMON_URL = "http://127.0.0.1:" .. VOICE_DAEMON_PORT
 
 -- Forward declarations
 local startResponseMonitor
+local ensureDaemonRunning
 
 -- Track PTT state
 local pttActive = false
 local recordingAlert = nil
+local daemonStarting = false
 
 -- Auto-submit mode (set to true for full voice conversation)
 local autoSubmitEnabled = true
+
+-- Check if daemon is running
+local function isDaemonRunning()
+    local handle = io.popen('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 ' .. VOICE_DAEMON_URL .. '/status 2>/dev/null')
+    if handle then
+        local result = handle:read("*a")
+        handle:close()
+        return result == "200"
+    end
+    return false
+end
+
+-- Start the daemon in background
+ensureDaemonRunning = function(callback)
+    if isDaemonRunning() then
+        if callback then callback(true) end
+        return
+    end
+
+    if daemonStarting then
+        -- Already starting, wait a bit and check again
+        hs.timer.doAfter(1, function()
+            if callback then callback(isDaemonRunning()) end
+        end)
+        return
+    end
+
+    daemonStarting = true
+    print("Claude Voice: Starting daemon...")
+    hs.alert.show("Starting voice daemon...", 2)
+
+    -- Start claude-voice in background
+    local task = hs.task.new("/opt/homebrew/bin/node", function(exitCode, stdOut, stdErr)
+        -- This callback runs when the process exits (which we don't want)
+        print("Claude Voice: Daemon exited with code " .. tostring(exitCode))
+        daemonStarting = false
+    end, function(task, stdOut, stdErr)
+        -- Stream callback - daemon is running
+        if stdOut and stdOut:find("Voice daemon started") then
+            print("Claude Voice: Daemon started successfully")
+            daemonStarting = false
+            if callback then callback(true) end
+        end
+        return true
+    end, {"/opt/homebrew/lib/node_modules/claude-voice/dist/cli.js", "on"})
+
+    if task then
+        task:start()
+        -- Give it time to start, then check
+        hs.timer.doAfter(3, function()
+            daemonStarting = false
+            if callback then callback(isDaemonRunning()) end
+        end)
+    else
+        print("Claude Voice: Failed to start daemon task")
+        daemonStarting = false
+        hs.alert.show("Failed to start voice daemon", 2)
+        if callback then callback(false) end
+    end
+end
 
 -- Send HTTP request to voice daemon and get response
 local function sendToVoiceDaemon(endpoint, callback)
@@ -61,12 +123,19 @@ end
 
 -- PTT Start (key down)
 local function pttStart()
-    if not pttActive then
-        pttActive = true
-        print("Claude Voice: Recording started")
-        recordingAlert = hs.alert.show("🎤 Recording...", 999)
-        sendToVoiceDaemon("/ptt/start")
-    end
+    if pttActive then return end
+
+    -- Ensure daemon is running before starting PTT
+    ensureDaemonRunning(function(success)
+        if success then
+            pttActive = true
+            print("Claude Voice: Recording started")
+            recordingAlert = hs.alert.show("🎤 Recording...", 999)
+            sendToVoiceDaemon("/ptt/start")
+        else
+            hs.alert.show("Voice daemon not available", 2)
+        end
+    end)
 end
 
 -- PTT Stop (key up) - this triggers transcription and typing

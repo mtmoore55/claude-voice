@@ -35,7 +35,12 @@ export class Visualizer {
   start(): void {
     if (this.isActive) return;
     this.isActive = true;
-    this.lineCount = 0;
+
+    // Set initial line count for symmetric mode (2 lines)
+    this.lineCount = this.style === 'symmetric' ? 2 : 1;
+
+    // Render immediately to show the visualizer
+    this.render();
 
     // Update display at 30fps
     this.intervalId = setInterval(() => {
@@ -110,16 +115,25 @@ export class Visualizer {
    */
   private renderSymmetric(): string {
     const cyan = '\x1b[36m';
+    const dim = '\x1b[2m';
     const reset = '\x1b[0m';
 
     // Build top row (upward bars)
     const topBars = this.smoothedLevels.map(level => {
+      if (level < 0.01) {
+        // Show dim baseline when silent
+        return `${dim}─${reset}${cyan}`;
+      }
       const index = Math.min(BLOCKS.length - 1, Math.floor(level * BLOCKS.length));
       return BLOCKS[Math.max(0, index)];
     }).join('');
 
-    // Build bottom row (downward bars - mirror of top)
+    // Build bottom row (mirror of top)
     const bottomBars = this.smoothedLevels.map(level => {
+      if (level < 0.01) {
+        // Show dim baseline when silent
+        return `${dim}─${reset}${cyan}`;
+      }
       const index = Math.min(BLOCKS.length - 1, Math.floor(level * BLOCKS.length));
       return BLOCKS[Math.max(0, index)];
     }).join('');
