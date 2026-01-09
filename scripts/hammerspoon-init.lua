@@ -121,6 +121,35 @@ local function typeText(text, autoSubmit)
     end)
 end
 
+-- Find the TTY that Claude is running on
+local function findClaudeTTY()
+    local handle = io.popen("ps aux | grep -E 'claude$' | grep -v grep | awk '{print $7}' | head -1")
+    if handle then
+        local result = handle:read("*a")
+        handle:close()
+        local tty = result:gsub("%s+", "")
+        if tty ~= "" and tty ~= "??" then
+            return "/dev/" .. tty
+        end
+    end
+    return nil
+end
+
+-- Send TTY path to daemon
+local function sendTTYToDaemon()
+    local tty = findClaudeTTY()
+    if tty then
+        print("Claude Voice: Found TTY: " .. tty)
+        hs.http.asyncPost(VOICE_DAEMON_URL .. "/tty", tty, nil, function(status, body, headers)
+            if status == 200 then
+                print("Claude Voice: TTY set successfully")
+            end
+        end)
+    else
+        print("Claude Voice: Could not find Claude TTY")
+    end
+end
+
 -- PTT Start (key down)
 local function pttStart()
     if pttActive then return end
@@ -128,9 +157,11 @@ local function pttStart()
     -- Ensure daemon is running before starting PTT
     ensureDaemonRunning(function(success)
         if success then
+            -- Send TTY path for waveform display
+            sendTTYToDaemon()
+
             pttActive = true
             print("Claude Voice: Recording started")
-            recordingAlert = hs.alert.show("🎤 Recording...", 999)
             sendToVoiceDaemon("/ptt/start")
         else
             hs.alert.show("Voice daemon not available", 2)
@@ -143,8 +174,6 @@ local function pttStop()
     if pttActive then
         pttActive = false
         print("Claude Voice: Recording stopped, waiting for transcription...")
-        hs.alert.closeAll()
-        hs.alert.show("Processing...", 2)
 
         -- Stop recording and wait for transcription
         sendToVoiceDaemon("/ptt/stop")
