@@ -4,7 +4,7 @@ import { HotkeyListener } from '../voice/hotkey-listener.js';
 import { AudioEngine } from '../voice/audio-engine.js';
 import { createSTTProvider, STTProvider } from '../voice/stt/provider.js';
 import { createTTSProvider, TTSProvider } from '../voice/tts/provider.js';
-import { Visualizer } from '../voice/visualizer.js';
+import { TTYVisualizer } from '../voice/tty-visualizer.js';
 
 /**
  * Voice Daemon - runs in background, injects text into active terminal
@@ -17,7 +17,7 @@ export class VoiceDaemon extends EventEmitter {
   private audioEngine: AudioEngine;
   private sttProvider: STTProvider | null = null;
   private ttsProvider: TTSProvider | null = null;
-  private visualizer: Visualizer;
+  private visualizer: TTYVisualizer;
   private isRunning = false;
 
   constructor(config: VoiceConfig) {
@@ -25,7 +25,7 @@ export class VoiceDaemon extends EventEmitter {
     this.config = config;
     this.hotkeyListener = new HotkeyListener();
     this.audioEngine = new AudioEngine();
-    this.visualizer = new Visualizer();
+    this.visualizer = new TTYVisualizer();
     this.setupEventHandlers();
   }
 
@@ -63,7 +63,7 @@ export class VoiceDaemon extends EventEmitter {
   async stop(): Promise<void> {
     this.isRunning = false;
     this.hotkeyListener.stop();
-    this.visualizer.stop();
+    this.visualizer.cleanup();
     this.audioEngine.cleanup();
     await this.sttProvider?.cleanup();
     await this.ttsProvider?.cleanup();
@@ -143,6 +143,12 @@ export class VoiceDaemon extends EventEmitter {
     // Handle speak requests from HTTP endpoint
     this.hotkeyListener.on('speak', async (text: string) => {
       await this.speak(text);
+    });
+
+    // Handle TTY setting for waveform display
+    this.hotkeyListener.on('tty', (ttyPath: string) => {
+      console.log(`[Daemon] Setting TTY for waveform: ${ttyPath}`);
+      this.visualizer.setTTY(ttyPath);
     });
   }
 }

@@ -8,6 +8,7 @@ export interface HotkeyListenerEvents {
   'ptt:start': () => void;
   'ptt:end': () => void;
   'speak': (text: string) => void;
+  'tty': (ttyPath: string) => void;
 }
 
 /**
@@ -106,6 +107,21 @@ export class HotkeyListener extends EventEmitter {
             if (body.trim()) {
               console.log(`[TTS] Speaking: ${body.substring(0, 50)}...`);
               this.emit('speak', body);
+            }
+            res.writeHead(200);
+            res.end('ok');
+          });
+        } else if (req.url === '/tty') {
+          // Set target TTY for waveform display
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk.toString();
+          });
+          req.on('end', () => {
+            const ttyPath = body.trim();
+            if (ttyPath) {
+              console.log(`[TTY] Setting target TTY: ${ttyPath}`);
+              this.emit('tty', ttyPath);
             }
             res.writeHead(200);
             res.end('ok');
