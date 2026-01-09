@@ -5,6 +5,7 @@
  */
 
 import * as fs from 'fs';
+import { spawn } from 'child_process';
 
 const BLOCKS = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 const BAR_COUNT = 32;
@@ -197,7 +198,6 @@ export class TTYVisualizer {
     const soundFile = sounds[type];
     if (soundFile) {
       // Play asynchronously
-      const { spawn } = require('child_process');
       spawn('afplay', [soundFile], { stdio: 'ignore', detached: true }).unref();
     }
   }
