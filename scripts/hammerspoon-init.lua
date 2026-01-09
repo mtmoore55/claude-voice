@@ -123,13 +123,19 @@ end
 
 -- Find the TTY that Claude is running on
 local function findClaudeTTY()
-    local handle = io.popen("ps aux | grep -E 'claude$' | grep -v grep | awk '{print $7}' | head -1")
+    -- Look for 'claude' process with a real TTY (not ??)
+    local handle = io.popen("ps aux | grep 'claude' | grep -v grep | grep -v '??' | awk '{print $7}' | grep -E '^s[0-9]+|^ttys[0-9]+' | head -1")
     if handle then
         local result = handle:read("*a")
         handle:close()
         local tty = result:gsub("%s+", "")
-        if tty ~= "" and tty ~= "??" then
-            return "/dev/" .. tty
+        if tty ~= "" then
+            -- Add /dev/ prefix and normalize (s002 -> ttys002)
+            if tty:match("^s%d") then
+                return "/dev/tty" .. tty
+            elseif tty:match("^ttys%d") then
+                return "/dev/" .. tty
+            end
         end
     end
     return nil
