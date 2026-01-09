@@ -65,22 +65,20 @@ export async function runSetupWizard(): Promise<VoiceConfig> {
 
   // STT Provider Selection
   console.log(chalk.white('  Speech-to-Text Provider:\n'));
-  console.log(chalk.dim('  1. Whisper API (OpenAI) - High accuracy, cloud-based'));
-  console.log(chalk.dim('  2. Local Whisper - Privacy-focused, runs locally'));
-  console.log(chalk.dim('  3. Apple Speech - macOS native, free'));
-  console.log(chalk.dim('  4. Deepgram - Fast streaming, real-time'));
+  console.log(chalk.green('  1. Whisper.cpp (Local) - No API key, runs locally, recommended'));
+  console.log(chalk.dim('  2. Deepgram - Fast streaming, real-time (requires API key)'));
+  console.log(chalk.dim('  3. Whisper API (OpenAI) - Cloud-based (requires API key)'));
   console.log();
 
   let sttChoice = '';
-  while (!['1', '2', '3', '4'].includes(sttChoice)) {
-    sttChoice = await prompt.question(chalk.white('  Select STT provider (1-4): '));
+  while (!['1', '2', '3'].includes(sttChoice)) {
+    sttChoice = await prompt.question(chalk.white('  Select STT provider (1-3) [default: 1]: ')) || '1';
   }
 
   const sttProviders: Record<string, STTConfig['provider']> = {
-    '1': 'whisper-api',
-    '2': 'whisper-local',
-    '3': 'apple-speech',
-    '4': 'deepgram',
+    '1': 'whisper-cpp',
+    '2': 'deepgram',
+    '3': 'whisper-api',
   };
 
   const sttConfig: STTConfig = {
@@ -96,6 +94,8 @@ export async function runSetupWizard(): Promise<VoiceConfig> {
     console.log();
     const apiKey = await prompt.question(chalk.white('  Enter Deepgram API key: '));
     sttConfig.apiKey = apiKey.trim();
+  } else if (sttConfig.provider === 'whisper-cpp') {
+    console.log(chalk.dim('\n  Whisper.cpp will download the model on first use (~142MB)'));
   }
 
   // TTS Configuration

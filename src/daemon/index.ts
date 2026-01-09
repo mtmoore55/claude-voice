@@ -91,6 +91,9 @@ export class VoiceDaemon extends EventEmitter {
     this.hotkeyListener.on('ptt:start', async () => {
       console.log('\n>>> PTT START detected');
 
+      // Clear any pending transcription from previous recording
+      this.hotkeyListener.clearTranscription();
+
       if (this.state === VoiceState.SPEAKING && this.config.interruptEnabled) {
         await this.ttsProvider?.stop();
       }
@@ -136,7 +139,12 @@ export class VoiceDaemon extends EventEmitter {
     });
 
     // Handle audio level updates for visualization
+    let levelLogCount = 0;
     this.audioEngine.on('level', (level: number) => {
+      if (levelLogCount < 5) {
+        console.log(`[Audio Level] ${level.toFixed(4)}`);
+        levelLogCount++;
+      }
       this.visualizer.updateLevel(level);
     });
 
@@ -149,6 +157,24 @@ export class VoiceDaemon extends EventEmitter {
     this.hotkeyListener.on('tty', (ttyPath: string) => {
       console.log(`[Daemon] Setting TTY for waveform: ${ttyPath}`);
       this.visualizer.setTTY(ttyPath);
+    });
+
+    // Handle countdown events
+    this.hotkeyListener.on('countdown:start', (transcription: string) => {
+      this.visualizer.startCountdown(transcription, 3);
+    });
+
+    this.hotkeyListener.on('countdown:cancel', () => {
+      this.visualizer.cancelCountdown();
+    });
+
+    this.hotkeyListener.on('countdown:send', () => {
+      this.visualizer.showSent();
+    });
+
+    // Handle state events
+    this.hotkeyListener.on('state:ready', () => {
+      this.visualizer.showReady();
     });
   }
 }

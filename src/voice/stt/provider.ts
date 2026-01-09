@@ -37,6 +37,12 @@ export interface STTProvider {
  */
 export async function createSTTProvider(config: STTConfig): Promise<STTProvider> {
   switch (config.provider) {
+    case 'whisper-cpp': {
+      const { WhisperCppProvider } = await import('./whisper-cpp.js');
+      const provider = new WhisperCppProvider();
+      await provider.initialize(config);
+      return provider;
+    }
     case 'whisper-api': {
       const { WhisperAPIProvider } = await import('./whisper-api.js');
       const provider = new WhisperAPIProvider();
@@ -44,7 +50,11 @@ export async function createSTTProvider(config: STTConfig): Promise<STTProvider>
       return provider;
     }
     case 'whisper-local': {
-      throw new Error('Local Whisper provider not yet implemented');
+      // Alias for whisper-cpp
+      const { WhisperCppProvider } = await import('./whisper-cpp.js');
+      const provider = new WhisperCppProvider();
+      await provider.initialize(config);
+      return provider;
     }
     case 'apple-speech': {
       throw new Error('Apple Speech provider not yet implemented');

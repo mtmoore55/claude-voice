@@ -9,6 +9,10 @@ export interface HotkeyListenerEvents {
   'ptt:end': () => void;
   'speak': (text: string) => void;
   'tty': (ttyPath: string) => void;
+  'countdown:start': (transcription: string) => void;
+  'countdown:cancel': () => void;
+  'countdown:send': () => void;
+  'state:ready': () => void;
 }
 
 /**
@@ -43,6 +47,13 @@ export class HotkeyListener extends EventEmitter {
     const text = this.lastTranscription;
     this.lastTranscription = '';
     return text;
+  }
+
+  /**
+   * Clear any pending transcription (called when new recording starts)
+   */
+  clearTranscription(): void {
+    this.lastTranscription = '';
   }
 
   /**
@@ -126,6 +137,35 @@ export class HotkeyListener extends EventEmitter {
             res.writeHead(200);
             res.end('ok');
           });
+        } else if (req.url === '/countdown/start') {
+          // Start countdown with transcription
+          let body = '';
+          req.on('data', (chunk) => {
+            body += chunk.toString();
+          });
+          req.on('end', () => {
+            const transcription = body.trim();
+            if (transcription) {
+              console.log(`[Countdown] Starting: ${transcription.substring(0, 30)}...`);
+              this.emit('countdown:start', transcription);
+            }
+            res.writeHead(200);
+            res.end('ok');
+          });
+        } else if (req.url === '/countdown/cancel') {
+          console.log(`[Countdown] Cancelled`);
+          this.emit('countdown:cancel');
+          res.writeHead(200);
+          res.end('ok');
+        } else if (req.url === '/countdown/send') {
+          console.log(`[Countdown] Send now`);
+          this.emit('countdown:send');
+          res.writeHead(200);
+          res.end('ok');
+        } else if (req.url === '/state/ready') {
+          this.emit('state:ready');
+          res.writeHead(200);
+          res.end('ok');
         } else {
           res.writeHead(404);
           res.end('not found');
