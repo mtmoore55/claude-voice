@@ -146,7 +146,7 @@ export async function runSetupWizard(): Promise<VoiceConfig> {
     enabled: true,
     stt: sttConfig,
     tts: ttsConfig,
-    hotkey: 'cmd+option',
+    hotkey: 'right-option',
     interruptEnabled: interruptChoice.toLowerCase() === 'y',
     showTranscription: true,
   };

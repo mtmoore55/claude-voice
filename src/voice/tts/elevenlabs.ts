@@ -1,5 +1,8 @@
 import WebSocket from 'ws';
 import { spawn, ChildProcess } from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { TTSConfig } from '../../types.js';
 import { TTSProvider, Voice } from './provider.js';
 
@@ -192,22 +195,29 @@ export class ElevenLabsProvider implements TTSProvider {
    */
   private playAudio(audioBuffer: Buffer): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Use afplay on macOS for MP3 playback
-      this.player = spawn('afplay', ['-'], {
-        stdio: ['pipe', 'ignore', 'ignore'],
-      });
+      // Write to temp file since afplay doesn't reliably read from stdin
+      const tempFile = path.join(os.tmpdir(), `claude-voice-${Date.now()}.mp3`);
 
-      this.player.stdin?.write(audioBuffer);
-      this.player.stdin?.end();
+      fs.writeFile(tempFile, audioBuffer, (err: Error | null) => {
+        if (err) {
+          reject(err);
+          return;
+        }
 
-      this.player.on('exit', () => {
-        this.player = null;
-        resolve();
-      });
+        this.player = spawn('afplay', [tempFile]);
 
-      this.player.on('error', (error) => {
-        this.player = null;
-        reject(error);
+        this.player.on('exit', () => {
+          this.player = null;
+          // Clean up temp file
+          fs.unlink(tempFile, () => {});
+          resolve();
+        });
+
+        this.player.on('error', (error) => {
+          this.player = null;
+          fs.unlink(tempFile, () => {});
+          reject(error);
+        });
       });
     });
   }

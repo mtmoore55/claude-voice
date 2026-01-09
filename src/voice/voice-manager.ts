@@ -194,6 +194,8 @@ export class VoiceManager extends EventEmitter {
         const transcript = await this.sttProvider?.stopStream();
 
         if (transcript && transcript.trim()) {
+          // Store for Hammerspoon to fetch
+          this.hotkeyListener.setTranscription(transcript);
           this.emit('transcription', transcript, false);
         } else {
           this.setState(VoiceState.IDLE);

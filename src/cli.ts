@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { VoiceManager } from './voice/voice-manager.js';
 import { PTYWrapper } from './standalone/pty-wrapper.js';
+import { VoiceDaemon } from './daemon/index.js';
 import { loadConfig, runSetupWizard } from './voice/config.js';
 import { VoiceState } from './types.js';
 
@@ -47,13 +48,14 @@ program
     voiceManager.on('stateChange', (state: VoiceState) => {
       switch (state) {
         case VoiceState.LISTENING:
-          process.stdout.write(chalk.green('\n  [Listening...] '));
+          // Print newlines to make room for the 2-line waveform visualizer
+          process.stdout.write('\n\n');
           break;
         case VoiceState.PROCESSING:
-          process.stdout.write(chalk.yellow('\n  [Processing...]\n'));
+          process.stdout.write(chalk.yellow('  [Processing...]\n'));
           break;
         case VoiceState.SPEAKING:
-          process.stdout.write(chalk.blue('\n  [Speaking...]\n'));
+          process.stdout.write(chalk.blue('  [Speaking...]\n'));
           break;
       }
     });
@@ -123,6 +125,55 @@ program
       console.log(chalk.red(`  TTS: Failed - ${error}\n`));
     }
 
+    process.exit(0);
+  });
+
+program
+  .command('on')
+  .description('Enable voice mode in current session (runs as background daemon)')
+  .action(async () => {
+    console.log(chalk.cyan('\n  Starting Voice Daemon\n'));
+
+    const config = await loadConfig();
+    if (!config) {
+      console.log(chalk.yellow('  Please run setup first: claude-voice setup\n'));
+      process.exit(1);
+    }
+
+    const daemon = new VoiceDaemon(config);
+
+    // Handle shutdown
+    process.on('SIGINT', async () => {
+      console.log('\n  Stopping voice daemon...');
+      await daemon.stop();
+      process.exit(0);
+    });
+
+    process.on('SIGTERM', async () => {
+      await daemon.stop();
+      process.exit(0);
+    });
+
+    try {
+      await daemon.start();
+      // Keep process running
+    } catch (error) {
+      console.error(chalk.red('Failed to start voice daemon:'), error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('speak <text>')
+  .description('Speak text using TTS (for use in hooks)')
+  .action(async (text: string) => {
+    const config = await loadConfig();
+    if (!config) {
+      process.exit(1);
+    }
+
+    const daemon = new VoiceDaemon(config);
+    await daemon.speak(text);
     process.exit(0);
   });
 

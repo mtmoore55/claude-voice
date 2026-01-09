@@ -50,7 +50,10 @@ export async function createSTTProvider(config: STTConfig): Promise<STTProvider>
       throw new Error('Apple Speech provider not yet implemented');
     }
     case 'deepgram': {
-      throw new Error('Deepgram provider not yet implemented');
+      const { DeepgramProvider } = await import('./deepgram.js');
+      const provider = new DeepgramProvider();
+      await provider.initialize(config);
+      return provider;
     }
     default:
       throw new Error(`Unknown STT provider: ${config.provider}`);
