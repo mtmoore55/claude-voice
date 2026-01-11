@@ -1,7 +1,7 @@
 {
   "name": "voice-mode",
   "version": "0.1.0",
-  "description": "Voice interaction for Claude Code - talk to Claude with push-to-talk",
+  "description": "Voice input for Claude Code. After install, run /voice-mode-start",
   "author": {
     "name": "Matt Moore",
     "url": "https://github.com/mtmoore55"

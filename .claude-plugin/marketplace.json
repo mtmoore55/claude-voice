@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "voice-mode",
-      "description": "Talk to Claude with push-to-talk voice interaction",
+      "description": "Voice input for Claude Code. After install, run /voice-mode-start",
       "source": "./",
       "keywords": ["voice", "audio", "speech", "accessibility"]
     }
