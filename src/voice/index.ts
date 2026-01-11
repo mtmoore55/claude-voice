@@ -5,7 +5,5 @@ export { Visualizer, createPulse } from './visualizer.js';
 export type { VisualizerStyle } from './visualizer.js';
 export { loadConfig, saveConfig, runSetupWizard } from './config.js';
 export { createSTTProvider } from './stt/provider.js';
-export { createTTSProvider } from './tts/provider.js';
 
 export type { STTProvider } from './stt/provider.js';
-export type { TTSProvider, Voice } from './tts/provider.js';

@@ -37,7 +37,13 @@ bash ~/claude-voice/scripts/setup-hotkey.sh
 
 After running these, tell the user to grant Accessibility permission to Hammerspoon in System Settings → Privacy & Security → Accessibility.
 
-### If installed, start voice mode:
+Then start voice mode:
+
+```bash
+claude-voice on
+```
+
+### If already installed, start voice mode:
 
 ```bash
 claude-voice on

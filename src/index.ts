@@ -1,7 +1,7 @@
 /**
  * Claude Voice - Voice mode for Claude Code
  *
- * This module provides voice input/output capabilities for the Claude Code CLI.
+ * This module provides voice input capabilities for the Claude Code CLI.
  *
  * @example
  * ```typescript
@@ -13,13 +13,12 @@
  * ```
  */
 
-// Re-export types (excluding interfaces also exported from voice module)
+// Re-export types
 export {
   VoiceState,
   VoiceEvent,
   VoiceConfig,
   STTConfig,
-  TTSConfig,
   AudioLevelCallback,
   HotkeyEvent,
   VoiceManagerEvents,

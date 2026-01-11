@@ -46,7 +46,7 @@
 │                                       │
 │  ┌─────────────────────────────────┐  │
 │  │ Installs Hammerspoon            │  │
-│  │ Configures Right Option key     │  │
+│  │ Configures Cmd+. hotkey          │  │
 │  └─────────────────────────────────┘  │
 │                                       │
 │  ⚠️  GRANT ACCESSIBILITY PERMISSION   │

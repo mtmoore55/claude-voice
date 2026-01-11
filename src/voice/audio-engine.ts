@@ -1,7 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
-import Speaker from 'speaker';
-import { Readable } from 'stream';
 
 export interface AudioEngineEvents {
   'level': (level: number) => void;
@@ -10,14 +8,13 @@ export interface AudioEngineEvents {
 }
 
 /**
- * Audio Engine - handles microphone capture and speaker playback
+ * Audio Engine - handles microphone capture
  * Uses native macOS tools for audio capture
  */
 export class AudioEngine extends EventEmitter {
   private recordingProcess: ChildProcess | null = null;
   private audioBuffer: Buffer[] = [];
   private isRecording = false;
-  private speaker: Speaker | null = null;
 
   constructor() {
     super();
@@ -89,65 +86,6 @@ export class AudioEngine extends EventEmitter {
   }
 
   /**
-   * Play audio through speakers
-   */
-  playAudio(audioData: Buffer | Readable, format: 'mp3' | 'pcm' = 'mp3'): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        if (format === 'mp3') {
-          // Decode MP3 using ffmpeg/afplay on macOS
-          const player = spawn('afplay', ['-'], {
-            stdio: ['pipe', 'ignore', 'ignore']
-          });
-
-          if (Buffer.isBuffer(audioData)) {
-            player.stdin?.write(audioData);
-            player.stdin?.end();
-          } else {
-            audioData.pipe(player.stdin!);
-          }
-
-          player.on('exit', () => resolve());
-          player.on('error', reject);
-        } else {
-          // Play raw PCM through speaker module
-          this.speaker = new Speaker({
-            channels: 1,
-            bitDepth: 16,
-            sampleRate: 16000,
-          });
-
-          this.speaker.on('close', () => {
-            this.speaker = null;
-            resolve();
-          });
-
-          this.speaker.on('error', reject);
-
-          if (Buffer.isBuffer(audioData)) {
-            this.speaker.write(audioData);
-            this.speaker.end();
-          } else {
-            audioData.pipe(this.speaker);
-          }
-        }
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  /**
-   * Stop any currently playing audio
-   */
-  stopPlayback(): void {
-    if (this.speaker) {
-      this.speaker.end();
-      this.speaker = null;
-    }
-  }
-
-  /**
    * Check if currently recording
    */
   isCurrentlyRecording(): boolean {
@@ -212,6 +150,5 @@ export class AudioEngine extends EventEmitter {
       this.recordingProcess.kill();
       this.recordingProcess = null;
     }
-    this.stopPlayback();
   }
 }

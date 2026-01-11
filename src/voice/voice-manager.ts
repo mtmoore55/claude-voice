@@ -3,12 +3,11 @@ import { VoiceState, VoiceConfig } from '../types.js';
 import { HotkeyListener } from './hotkey-listener.js';
 import { AudioEngine } from './audio-engine.js';
 import { createSTTProvider, STTProvider } from './stt/provider.js';
-import { createTTSProvider, TTSProvider } from './tts/provider.js';
 import { Visualizer } from './visualizer.js';
 
 /**
  * Voice Module Manager
- * Coordinates all voice features: hotkeys, audio, STT, TTS, and visualization
+ * Coordinates all voice features: hotkeys, audio, STT, and visualization
  */
 export class VoiceManager extends EventEmitter {
   private config: VoiceConfig;
@@ -16,10 +15,7 @@ export class VoiceManager extends EventEmitter {
   private hotkeyListener: HotkeyListener;
   private audioEngine: AudioEngine;
   private sttProvider: STTProvider | null = null;
-  private ttsProvider: TTSProvider | null = null;
   private visualizer: Visualizer;
-  private pendingSpeech: string[] = [];
-  private isProcessingTTS = false;
 
   constructor(config: VoiceConfig) {
     super();
@@ -38,18 +34,6 @@ export class VoiceManager extends EventEmitter {
     // Initialize STT provider
     this.sttProvider = await createSTTProvider(this.config.stt);
 
-    // Initialize TTS provider
-    this.ttsProvider = await createTTSProvider(this.config.tts);
-
-    // Setup TTS callbacks
-    this.ttsProvider.onStart(() => {
-      this.setState(VoiceState.SPEAKING);
-    });
-
-    this.ttsProvider.onEnd(() => {
-      this.processTTSQueue();
-    });
-
     // Start listening for hotkeys
     this.hotkeyListener.start();
 
@@ -61,46 +45,6 @@ export class VoiceManager extends EventEmitter {
    */
   getState(): VoiceState {
     return this.state;
-  }
-
-  /**
-   * Queue text for TTS
-   */
-  speak(text: string): void {
-    if (!this.ttsProvider) return;
-
-    // Add to queue
-    this.pendingSpeech.push(text);
-
-    // Process if not already processing
-    if (!this.isProcessingTTS) {
-      this.processTTSQueue();
-    }
-  }
-
-  /**
-   * Process TTS queue
-   */
-  private async processTTSQueue(): Promise<void> {
-    if (!this.ttsProvider || this.pendingSpeech.length === 0) {
-      this.isProcessingTTS = false;
-      if (this.state === VoiceState.SPEAKING) {
-        this.setState(VoiceState.IDLE);
-      }
-      return;
-    }
-
-    this.isProcessingTTS = true;
-    const text = this.pendingSpeech.shift()!;
-
-    try {
-      await this.ttsProvider.speak(text);
-    } catch (error) {
-      this.emit('error', error);
-    }
-
-    // Continue processing queue
-    this.processTTSQueue();
   }
 
   /**
@@ -118,33 +62,6 @@ export class VoiceManager extends EventEmitter {
   }
 
   /**
-   * Test TTS functionality
-   */
-  async testTTS(): Promise<void> {
-    if (!this.ttsProvider) {
-      throw new Error('TTS provider not initialized');
-    }
-
-    const available = await this.ttsProvider.isAvailable();
-    if (!available) {
-      throw new Error('TTS provider not available - check API key');
-    }
-
-    await this.ttsProvider.speak('Voice mode is working correctly.');
-  }
-
-  /**
-   * Interrupt current speech
-   */
-  async interrupt(): Promise<void> {
-    if (this.config.interruptEnabled && this.state === VoiceState.SPEAKING) {
-      this.pendingSpeech = [];
-      await this.ttsProvider?.stop();
-      this.setState(VoiceState.IDLE);
-    }
-  }
-
-  /**
    * Cleanup and shutdown
    */
   async cleanup(): Promise<void> {
@@ -152,7 +69,6 @@ export class VoiceManager extends EventEmitter {
     this.visualizer.stop();
     this.audioEngine.cleanup();
     await this.sttProvider?.cleanup();
-    await this.ttsProvider?.cleanup();
   }
 
   /**
@@ -161,15 +77,6 @@ export class VoiceManager extends EventEmitter {
   private setupEventHandlers(): void {
     // Handle push-to-talk start
     this.hotkeyListener.on('ptt:start', async () => {
-      if (this.state === VoiceState.SPEAKING) {
-        // Interrupt if enabled
-        if (this.config.interruptEnabled) {
-          await this.interrupt();
-        } else {
-          return;
-        }
-      }
-
       this.setState(VoiceState.LISTENING);
       this.visualizer.start();
 

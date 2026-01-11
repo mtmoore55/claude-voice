@@ -2,7 +2,7 @@
 -- Includes Claude Voice push-to-talk hotkey
 
 -- Claude Voice - Push-to-Talk Configuration
--- Hold Right Option to speak, release to stop and transcribe
+-- Press Cmd+. to start recording, press again to stop and transcribe
 
 local VOICE_DAEMON_PORT = 17394
 local VOICE_DAEMON_URL = "http://127.0.0.1:" .. VOICE_DAEMON_PORT
@@ -18,7 +18,7 @@ local function sendToVoiceDaemon(endpoint)
     end)
 end
 
--- PTT Start (key down)
+-- PTT Start
 local function pttStart()
     if not pttActive then
         pttActive = true
@@ -27,7 +27,7 @@ local function pttStart()
     end
 end
 
--- PTT Stop (key up)
+-- PTT Stop
 local function pttStop()
     if pttActive then
         pttActive = false
@@ -35,27 +35,20 @@ local function pttStop()
     end
 end
 
--- Create an eventtap to capture Right Option key events
-local rightOptionTap = hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
-    local flags = event:getFlags()
-    local keyCode = event:getKeyCode()
-
-    -- Right Option key code is 61
-    if keyCode == 61 then
-        if flags.alt then
-            pttStart()
-        else
-            pttStop()
-        end
+-- Toggle PTT
+local function pttToggle()
+    if pttActive then
+        pttStop()
+    else
+        pttStart()
     end
+end
 
-    return false
-end)
-
-rightOptionTap:start()
+-- Cmd+. hotkey for toggle mode
+hs.hotkey.bind({"cmd"}, ".", pttToggle)
 
 -- Notify that voice hotkey is ready
-hs.alert.show("Claude Voice hotkey ready", 2)
+hs.alert.show("Claude Voice hotkey ready (Cmd+.)", 2)
 
 -- Reload config shortcut (Cmd+Ctrl+R)
 hs.hotkey.bind({"cmd", "ctrl"}, "r", function()
@@ -63,4 +56,4 @@ hs.hotkey.bind({"cmd", "ctrl"}, "r", function()
 end)
 
 print("Claude Voice: Hammerspoon configuration loaded")
-print("Claude Voice: Hold Right Option to speak")
+print("Claude Voice: Press Cmd+. to toggle recording")

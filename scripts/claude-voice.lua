@@ -1,6 +1,6 @@
 -- Claude Voice - Hammerspoon Module
 -- This enables push-to-talk for Claude Code voice mode
--- Hold Right Option to speak, release to stop and transcribe
+-- Press Cmd+. to start recording, press again to stop and transcribe
 
 local M = {}
 
@@ -19,7 +19,7 @@ local function sendToVoiceDaemon(endpoint)
     end)
 end
 
--- PTT Start (key down)
+-- PTT Start
 local function pttStart()
     if not pttActive then
         pttActive = true
@@ -28,7 +28,7 @@ local function pttStart()
     end
 end
 
--- PTT Stop (key up)
+-- PTT Stop
 local function pttStop()
     if pttActive then
         pttActive = false
@@ -36,38 +36,25 @@ local function pttStop()
     end
 end
 
+-- Toggle PTT
+local function pttToggle()
+    if pttActive then
+        pttStop()
+    else
+        pttStart()
+    end
+end
+
 -- Initialize the hotkey listener
 function M.init()
-    if rightOptionTap then
-        rightOptionTap:stop()
-    end
-
-    rightOptionTap = hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
-        local flags = event:getFlags()
-        local keyCode = event:getKeyCode()
-
-        -- Right Option key code is 61
-        if keyCode == 61 then
-            if flags.alt then
-                pttStart()
-            else
-                pttStop()
-            end
-        end
-
-        return false
-    end)
-
-    rightOptionTap:start()
-    print("Claude Voice: Hotkey listener started (Right Option)")
+    -- Cmd+. hotkey for toggle mode
+    hs.hotkey.bind({"cmd"}, ".", pttToggle)
+    print("Claude Voice: Hotkey listener started (Cmd+.)")
 end
 
 -- Stop the hotkey listener
 function M.stop()
-    if rightOptionTap then
-        rightOptionTap:stop()
-        rightOptionTap = nil
-    end
+    -- Nothing to stop for hs.hotkey
 end
 
 -- Auto-initialize when loaded

@@ -3,7 +3,6 @@ import { VoiceConfig, VoiceState } from '../types.js';
 import { HotkeyListener } from '../voice/hotkey-listener.js';
 import { AudioEngine } from '../voice/audio-engine.js';
 import { createSTTProvider, STTProvider } from '../voice/stt/provider.js';
-import { createTTSProvider, TTSProvider } from '../voice/tts/provider.js';
 import { TTYVisualizer } from '../voice/tty-visualizer.js';
 
 /**
@@ -16,7 +15,6 @@ export class VoiceDaemon extends EventEmitter {
   private hotkeyListener: HotkeyListener;
   private audioEngine: AudioEngine;
   private sttProvider: STTProvider | null = null;
-  private ttsProvider: TTSProvider | null = null;
   private visualizer: TTYVisualizer;
   private isRunning = false;
   private ttyPath: string | null;
@@ -42,11 +40,6 @@ export class VoiceDaemon extends EventEmitter {
     this.sttProvider = await createSTTProvider(this.config.stt);
     console.log('STT provider ready.');
 
-    // Initialize TTS provider
-    console.log('Initializing TTS provider...');
-    this.ttsProvider = await createTTSProvider(this.config.tts);
-    console.log('TTS provider ready.');
-
     // Set TTY for visualizer if we have one
     if (this.ttyPath) {
       console.log(`Setting TTY for visualizer: ${this.ttyPath}`);
@@ -62,7 +55,7 @@ export class VoiceDaemon extends EventEmitter {
 
     this.isRunning = true;
 
-    console.log('\nVoice daemon started. Hold Cmd+Option to speak.');
+    console.log('\nVoice daemon started. Press Cmd+. to speak.');
     console.log('Press Ctrl+C to stop.');
     console.log('\nNote: Terminal needs Accessibility permissions in System Settings.\n');
   }
@@ -76,22 +69,7 @@ export class VoiceDaemon extends EventEmitter {
     this.visualizer.cleanup();
     this.audioEngine.cleanup();
     await this.sttProvider?.cleanup();
-    await this.ttsProvider?.cleanup();
   }
-
-  /**
-   * Speak text via TTS
-   */
-  async speak(text: string): Promise<void> {
-    if (!this.ttsProvider || !text.trim()) return;
-
-    try {
-      await this.ttsProvider.speak(text);
-    } catch (error) {
-      console.error('TTS error:', error);
-    }
-  }
-
 
   /**
    * Setup event handlers
@@ -103,10 +81,6 @@ export class VoiceDaemon extends EventEmitter {
 
       // Clear any pending transcription from previous recording
       this.hotkeyListener.clearTranscription();
-
-      if (this.state === VoiceState.SPEAKING && this.config.interruptEnabled) {
-        await this.ttsProvider?.stop();
-      }
 
       this.state = VoiceState.LISTENING;
       this.visualizer.start();
@@ -156,11 +130,6 @@ export class VoiceDaemon extends EventEmitter {
         levelLogCount++;
       }
       this.visualizer.updateLevel(level);
-    });
-
-    // Handle speak requests from HTTP endpoint
-    this.hotkeyListener.on('speak', async (text: string) => {
-      await this.speak(text);
     });
 
     // Handle TTY setting for waveform display

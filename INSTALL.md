@@ -63,7 +63,7 @@ The setup wizard will configure speech-to-text with whisper-cpp.
 
 ## Step 4: Set Up Hotkey (Hammerspoon)
 
-Claude Voice uses **Right Option** as the push-to-talk key. This requires Hammerspoon:
+Claude Voice uses **Cmd+.** (Command + Period) as the hotkey. This requires Hammerspoon:
 
 ```bash
 bash ~/claude-voice/scripts/setup-hotkey.sh
@@ -83,8 +83,9 @@ If Hammerspoon isn't in the list, open Hammerspoon once from Applications, then 
 
 ## Step 5: Start Using Voice
 
-```bash
-claude-voice
+In Claude Code, run:
+```
+/voice-mode-start
 ```
 
 ### How to Talk to Claude
@@ -117,7 +118,7 @@ Go to **System Settings → Privacy & Security → Microphone** and enable Termi
 
 ### "ECONNREFUSED" errors
 
-The voice daemon isn't running. Make sure you started with `claude-voice` (not just `claude`).
+The voice daemon isn't running. Run `/voice-mode-start` in Claude Code to enable voice mode.
 
 ---
 
@@ -125,10 +126,9 @@ The voice daemon isn't running. Make sure you started with `claude-voice` (not j
 
 | Command | What it does |
 |---------|--------------|
-| `claude-voice` | Start Claude with voice mode |
-| `claude-voice setup` | Configure voice settings |
+| `/voice-mode-start` | Start voice mode in Claude Code |
+| `claude-voice setup` | Configure voice settings (run once during setup) |
 | `claude-voice test` | Test your setup |
-| `claude-voice on` | Enable voice in existing Claude session |
 
 ---
 

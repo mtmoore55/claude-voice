@@ -4,8 +4,7 @@ import { homedir } from 'os';
 import { join } from 'path';
 import chalk from 'chalk';
 import { createInterface } from 'readline';
-import { VoiceConfig, STTConfig, TTSConfig } from '../types.js';
-import { createTTSProvider } from './tts/provider.js';
+import { VoiceConfig, STTConfig } from '../types.js';
 
 const CONFIG_DIR = join(homedir(), '.claude');
 const CONFIG_FILE = join(CONFIG_DIR, 'voice.json');
@@ -61,7 +60,7 @@ export async function runSetupWizard(): Promise<VoiceConfig> {
   const prompt = createPrompt();
 
   console.log(chalk.cyan.bold('\n  Voice Mode Setup\n'));
-  console.log(chalk.dim('  Configure your voice input and output preferences.\n'));
+  console.log(chalk.dim('  Configure voice input for Claude Code.\n'));
 
   // STT Provider Selection
   console.log(chalk.white('  Speech-to-Text Provider:\n'));
@@ -98,56 +97,10 @@ export async function runSetupWizard(): Promise<VoiceConfig> {
     console.log(chalk.dim('\n  Whisper.cpp will download the model on first use (~142MB)'));
   }
 
-  // TTS Configuration
-  console.log(chalk.white('\n  Text-to-Speech (ElevenLabs)\n'));
-
-  const elevenLabsKey = await prompt.question(chalk.white('  Enter ElevenLabs API key: '));
-
-  const ttsConfig: TTSConfig = {
-    provider: 'elevenlabs',
-    apiKey: elevenLabsKey.trim(),
-    voiceId: '',
-  };
-
-  // Fetch and display voices
-  console.log(chalk.dim('\n  Fetching available voices...'));
-
-  try {
-    const provider = await createTTSProvider(ttsConfig);
-    const voices = await provider.getVoices();
-
-    console.log(chalk.white('\n  Available Voices:\n'));
-    voices.slice(0, 10).forEach((voice, i) => {
-      const labels = voice.labels ? ` (${Object.values(voice.labels).join(', ')})` : '';
-      console.log(chalk.dim(`  ${i + 1}. ${voice.name}${labels}`));
-    });
-    console.log();
-
-    let voiceChoice = '';
-    while (!voiceChoice || isNaN(parseInt(voiceChoice)) || parseInt(voiceChoice) < 1 || parseInt(voiceChoice) > Math.min(10, voices.length)) {
-      voiceChoice = await prompt.question(chalk.white(`  Select voice (1-${Math.min(10, voices.length)}): `));
-    }
-
-    ttsConfig.voiceId = voices[parseInt(voiceChoice) - 1].id;
-
-    await provider.cleanup();
-  } catch (error) {
-    console.log(chalk.yellow(`\n  Could not fetch voices: ${error}`));
-    const voiceId = await prompt.question(chalk.white('  Enter voice ID manually: '));
-    ttsConfig.voiceId = voiceId.trim();
-  }
-
-  // Additional settings
-  console.log(chalk.white('\n  Additional Settings\n'));
-
-  const interruptChoice = await prompt.question(chalk.white('  Enable interrupt (barge-in)? (y/n): '));
-
   const config: VoiceConfig = {
     enabled: true,
     stt: sttConfig,
-    tts: ttsConfig,
-    hotkey: 'right-option',
-    interruptEnabled: interruptChoice.toLowerCase() === 'y',
+    hotkey: 'cmd-.',
     showTranscription: true,
   };
 
@@ -155,7 +108,7 @@ export async function runSetupWizard(): Promise<VoiceConfig> {
   await saveConfig(config);
 
   console.log(chalk.green('\n  Configuration saved!\n'));
-  console.log(chalk.dim('  Run ') + chalk.white('claude-voice') + chalk.dim(' to start with voice mode.\n'));
+  console.log(chalk.dim('  Press ') + chalk.white('Cmd+.') + chalk.dim(' to start recording, press again to send.\n'));
 
   prompt.close();
 

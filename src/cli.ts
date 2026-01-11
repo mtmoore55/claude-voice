@@ -37,8 +37,7 @@ program
       return;
     }
 
-    console.log(chalk.dim('  Hold ') + chalk.bold('Cmd+Option') + chalk.dim(' to talk\n'));
-    console.log(chalk.dim('  Voice: ') + chalk.cyan(config.tts.provider));
+    console.log(chalk.dim('  Press ') + chalk.bold('Cmd+.') + chalk.dim(' to talk\n'));
     console.log(chalk.dim('  STT: ') + chalk.cyan(config.stt.provider));
     console.log();
 
@@ -53,9 +52,6 @@ program
           break;
         case VoiceState.PROCESSING:
           process.stdout.write(chalk.yellow('  [Processing...]\n'));
-          break;
-        case VoiceState.SPEAKING:
-          process.stdout.write(chalk.blue('  [Speaking...]\n'));
           break;
       }
     });
@@ -75,13 +71,7 @@ program
 
     try {
       await voiceManager.initialize();
-      await pty.start({
-        onOutput: (data: string) => {
-          if (config.tts.provider && voiceManager.getState() !== VoiceState.LISTENING) {
-            voiceManager.speak(data);
-          }
-        }
-      });
+      await pty.start();
     } catch (error) {
       console.error(chalk.red('Failed to initialize voice mode:'), error);
       process.exit(1);
@@ -97,7 +87,7 @@ program
 
 program
   .command('test')
-  .description('Test voice input and output')
+  .description('Test voice input')
   .action(async () => {
     console.log(chalk.cyan('\n  Voice Test Mode\n'));
 
@@ -115,14 +105,6 @@ program
       console.log(chalk.green('  STT: OK\n'));
     } catch (error) {
       console.log(chalk.red(`  STT: Failed - ${error}\n`));
-    }
-
-    console.log(chalk.dim('  Testing TTS...'));
-    try {
-      await voiceManager.testTTS();
-      console.log(chalk.green('  TTS: OK\n'));
-    } catch (error) {
-      console.log(chalk.red(`  TTS: Failed - ${error}\n`));
     }
 
     process.exit(0);
@@ -249,20 +231,6 @@ program
       }
       process.exit(1);
     }
-  });
-
-program
-  .command('speak <text>')
-  .description('Speak text using TTS (for use in hooks)')
-  .action(async (text: string) => {
-    const config = await loadConfig();
-    if (!config) {
-      process.exit(1);
-    }
-
-    const daemon = new VoiceDaemon(config);
-    await daemon.speak(text);
-    process.exit(0);
   });
 
 program.parse();

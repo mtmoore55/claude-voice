@@ -1,11 +1,10 @@
 -- Claude Voice - Hammerspoon Configuration
--- Full voice-to-text flow: hold key → speak → release → text typed into Claude
+-- Full voice-to-text flow: press Cmd+. to start, press again to stop and send
 -- Per-session daemon support: each terminal has its own daemon
 
 require("hs.ipc")
 
 -- Forward declarations
-local startResponseMonitor
 local ensureDaemonRunning
 local getVoiceDaemonUrl
 
@@ -246,7 +245,7 @@ ensureDaemonRunning = function(callback)
     local tty = getFocusedTerminalTTY()
     if tty then
         print("Claude Voice: No daemon found for TTY " .. tty)
-        hs.alert.show("Voice not enabled in this terminal.\nRun: claude-voice on", 3)
+        hs.alert.show("Voice not enabled.\nRun /voice-mode-start in Claude Code", 3)
     else
         print("Claude Voice: No terminal focused or TTY not found")
         hs.alert.show("Focus a terminal with voice enabled", 2)
@@ -284,7 +283,7 @@ local function typeText(text, autoSubmit)
                 hs.pasteboard.setContents(oldClipboard)
             end
 
-            -- Auto-submit if requested (TTS disabled)
+            -- Auto-submit if requested
             if autoSubmit then
                 hs.timer.doAfter(0.1, function()
                     hs.eventtap.keyStroke({}, "return")
@@ -294,53 +293,11 @@ local function typeText(text, autoSubmit)
     end)
 end
 
--- Find the TTY that Claude is running on
-local function findClaudeTTY()
-    -- Look for 'claude' process with a real TTY (not ??)
-    local handle = io.popen("ps aux | grep 'claude' | grep -v grep | grep -v '??' | awk '{print $7}' | grep -E '^s[0-9]+|^ttys[0-9]+' | head -1")
-    if handle then
-        local result = handle:read("*a")
-        handle:close()
-        local tty = result:gsub("%s+", "")
-        if tty ~= "" then
-            -- Add /dev/ prefix and normalize (s002 -> ttys002)
-            if tty:match("^s%d") then
-                return "/dev/tty" .. tty
-            elseif tty:match("^ttys%d") then
-                return "/dev/" .. tty
-            end
-        end
-    end
-    return nil
-end
-
--- Send TTY path to daemon (uses focused terminal detection)
--- Returns the TTY that was detected
-local function sendTTYToDaemon()
-    local tty = getFocusedTerminalTTY()
-    if tty then
-        print("Claude Voice: Sending TTY to daemon: " .. tty)
-        -- Use synchronous call to ensure TTY is set before PTT starts
-        local status, body = hs.http.post(getVoiceDaemonUrl() .. "/tty", tty, nil)
-        if status == 200 then
-            print("Claude Voice: TTY set successfully to " .. tty)
-        else
-            print("Claude Voice: Failed to set TTY, status: " .. tostring(status))
-        end
-        return tty
-    else
-        print("Claude Voice: Could not detect focused terminal TTY")
-        return nil
-    end
-end
-
--- PTT Start (key down)
+-- PTT Start
 local function pttStart()
     if pttActive then return end
 
     -- Ensure daemon is running before starting PTT
-    -- Note: We do NOT override the daemon's TTY - the daemon knows its own TTY
-    -- from startup and should render to that terminal
     ensureDaemonRunning(function(success)
         if success then
             pttActive = true
@@ -348,14 +305,14 @@ local function pttStart()
             sendToVoiceDaemon("/ptt/start")
 
             -- Show recording in terminal title
-            setTerminalTitle("🎤 RECORDING...")
+            setTerminalTitle("Recording...")
         else
             hs.alert.show("Voice daemon not available", 2)
         end
     end)
 end
 
--- PTT Stop (key up) - this triggers transcription and typing
+-- PTT Stop - this triggers transcription and typing
 local function pttStop()
     if pttActive then
         pttActive = false
@@ -401,33 +358,7 @@ function checkTranscription()
 end
 
 -- ============================================
--- HOLD-TO-TALK HOTKEYS
--- ============================================
-
--- Right Command key (hold to talk)
-local cmdTap = hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
-    local flags = event:getFlags()
-    local keyCode = event:getKeyCode()
-
-    -- Right Command = keycode 54
-    if keyCode == 54 then
-        if flags.cmd then
-            pttStart()
-        else
-            pttStop()
-        end
-    end
-
-    return false
-end)
-cmdTap:start()
-
--- F5 key (hold to talk) - more reliable
-local f5Hotkey = hs.hotkey.new({}, "F5", pttStart, pttStop)
-f5Hotkey:enable()
-
--- ============================================
--- TOGGLE MODE
+-- TOGGLE MODE HOTKEY
 -- ============================================
 
 -- Cmd+. - Toggle recording (primary hotkey)
@@ -436,169 +367,6 @@ hs.hotkey.bind({"cmd"}, ".", function()
         pttStop()
     else
         pttStart()
-    end
-end)
-
--- Ctrl+Option+Space - Toggle mode (legacy)
-hs.hotkey.bind({"ctrl", "alt"}, "space", function()
-    if pttActive then
-        pttStop()
-    else
-        pttStart()
-    end
-end)
-
--- ============================================
--- TTS - Speak Claude's Responses
--- ============================================
-
--- Find the most recent transcript file
-local function findLatestTranscript()
-    local projectDir = os.getenv("HOME") .. "/.claude/projects/-Users-mattmoore-Code-CCV"
-    local handle = io.popen('ls -t "' .. projectDir .. '"/*.jsonl 2>/dev/null | head -1')
-    if handle then
-        local result = handle:read("*a")
-        handle:close()
-        return result:gsub("%s+$", "")
-    end
-    return nil
-end
-
--- Get the last assistant response from transcript
-local function getLastAssistantResponse(transcriptPath)
-    if not transcriptPath or transcriptPath == "" then return nil end
-
-    local handle = io.popen('grep \'"role":"assistant"\' "' .. transcriptPath .. '" | grep \'"type":"text"\' | tail -1')
-    if handle then
-        local line = handle:read("*a")
-        handle:close()
-
-        if line and line ~= "" then
-            -- Extract text content using jq
-            local jqHandle = io.popen('echo \'' .. line:gsub("'", "'\\''") .. '\' | jq -r \'.message.content[] | select(.type=="text") | .text // empty\' 2>/dev/null')
-            if jqHandle then
-                local text = jqHandle:read("*a")
-                jqHandle:close()
-                return text:gsub("%s+$", "")
-            end
-        end
-    end
-    return nil
-end
-
--- Send text to TTS daemon
-local function speakText(text)
-    if not text or text == "" then return end
-
-    -- Limit length
-    if #text > 500 then
-        text = text:sub(1, 500) .. "..."
-    end
-
-    hs.http.asyncPost(getVoiceDaemonUrl() .. "/speak", text, nil, function(status, body, headers)
-        if status ~= 200 then
-            print("Claude Voice: TTS failed - " .. tostring(status))
-        end
-    end)
-end
-
--- Track last known response to avoid repeating
-local lastSpokenResponse = ""
-local monitorTimer = nil
-
--- Start monitoring for Claude's response
-startResponseMonitor = function()
-    local transcript = findLatestTranscript()
-    if not transcript then
-        print("Claude Voice: No transcript file found")
-        return
-    end
-
-    -- Capture the current response so we know to ignore it
-    local initialResponse = getLastAssistantResponse(transcript) or ""
-
-    -- Get initial line count
-    local handle = io.popen('wc -l "' .. transcript .. '" | awk \'{print $1}\'')
-    local initialLineCount = 0
-    if handle then
-        local result = handle:read("*a")
-        handle:close()
-        local cleaned = result:gsub("%s+", "")
-        initialLineCount = tonumber(cleaned) or 0
-    end
-
-    print("Claude Voice: Waiting for response...")
-    local checkCount = 0
-    local lastLineCount = initialLineCount
-    local sawGrowth = false
-    local waitingForGrowth = true
-
-    monitorTimer = hs.timer.doEvery(0.5, function()
-        checkCount = checkCount + 1
-
-        -- Get current line count
-        local handle = io.popen('wc -l "' .. transcript .. '" | awk \'{print $1}\'')
-        local lineCount = 0
-        if handle then
-            local result = handle:read("*a")
-            handle:close()
-            local cleaned = result:gsub("%s+", "")
-            lineCount = tonumber(cleaned) or 0
-        end
-
-        -- If file is growing, we're getting a response
-        if lineCount > lastLineCount then
-            sawGrowth = true
-            waitingForGrowth = false
-            lastLineCount = lineCount
-            checkCount = 0
-            return
-        end
-
-        -- If we've been waiting too long without growth, Claude might already be done
-        if waitingForGrowth and checkCount >= 60 then
-            sawGrowth = true -- Force check
-        end
-
-        -- Only check for response if we saw growth and file stopped changing for 2 checks
-        if sawGrowth and checkCount >= 2 then
-            if monitorTimer then
-                monitorTimer:stop()
-                monitorTimer = nil
-            end
-
-            local response = getLastAssistantResponse(transcript)
-            -- Only speak if it's different from the initial response we captured
-            if response and response ~= "" and response ~= initialResponse then
-                lastSpokenResponse = response
-                print("Claude Voice: Speaking response")
-                speakText(response)
-            end
-        end
-
-        -- Timeout after 30 seconds
-        if checkCount > 60 then
-            if monitorTimer then
-                monitorTimer:stop()
-                monitorTimer = nil
-            end
-        end
-    end)
-end
-
--- Hotkey to manually speak last response: Ctrl+Option+S
-hs.hotkey.bind({"ctrl", "alt"}, "s", function()
-    local transcript = findLatestTranscript()
-    if transcript then
-        local response = getLastAssistantResponse(transcript)
-        if response and response ~= "" then
-            hs.alert.show("Speaking: " .. response:sub(1, 50) .. "...", 2)
-            speakText(response)
-        else
-            hs.alert.show("No response to speak", 2)
-        end
-    else
-        hs.alert.show("No transcript found", 2)
     end
 end)
 
@@ -615,9 +383,8 @@ end)
 hs.hotkey.bind({"cmd", "ctrl"}, "h", function()
     hs.alert.show([[
 Claude Voice Hotkeys:
-• Cmd+. - Toggle recording
-• Hold F5 - Talk
-• Cmd+Ctrl+R - Reload config
+- Cmd+. - Toggle recording
+- Cmd+Ctrl+R - Reload config
 ]], 5)
 end)
 

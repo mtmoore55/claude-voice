@@ -7,7 +7,6 @@ const DEFAULT_PORT = 17394; // Voice daemon port
 export interface HotkeyListenerEvents {
   'ptt:start': () => void;
   'ptt:end': () => void;
-  'speak': (text: string) => void;
   'tty': (ttyPath: string) => void;
   'countdown:start': (transcription: string) => void;
   'countdown:cancel': () => void;
@@ -108,20 +107,6 @@ export class HotkeyListener extends EventEmitter {
           }
           res.writeHead(200);
           res.end('ok');
-        } else if (req.url === '/speak') {
-          // Read body and emit speak event
-          let body = '';
-          req.on('data', (chunk) => {
-            body += chunk.toString();
-          });
-          req.on('end', () => {
-            if (body.trim()) {
-              console.log(`[TTS] Speaking: ${body.substring(0, 50)}...`);
-              this.emit('speak', body);
-            }
-            res.writeHead(200);
-            res.end('ok');
-          });
         } else if (req.url === '/tty') {
           // Set target TTY for waveform display
           let body = '';
@@ -184,9 +169,13 @@ export class HotkeyListener extends EventEmitter {
 
     this.server.on('error', (error: NodeJS.ErrnoException) => {
       if (error.code === 'EADDRINUSE') {
-        console.error(`[HotkeyListener] Port ${this.port} is already in use. Is another voice daemon running?`);
+        console.error(`\nError: Port ${this.port} is already in use.`);
+        console.error('Is another voice daemon already running?');
+        console.error('\nTo fix: Kill the existing process with: pkill -f claude-voice\n');
+        process.exit(1);
       } else {
         console.error('[HotkeyListener] Server error:', error);
+        process.exit(1);
       }
     });
 

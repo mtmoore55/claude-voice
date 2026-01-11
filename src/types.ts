@@ -6,7 +6,6 @@ export enum VoiceState {
   TYPING = 'typing',
   LISTENING = 'listening',
   PROCESSING = 'processing',
-  SPEAKING = 'speaking',
 }
 
 /**
@@ -19,7 +18,6 @@ export enum VoiceEvent {
   TRANSCRIPTION_COMPLETE = 'transcription:complete',
   RESPONSE_START = 'response:start',
   RESPONSE_END = 'response:end',
-  SPEECH_COMPLETE = 'speech:complete',
   INTERRUPT = 'interrupt',
   ERROR = 'error',
 }
@@ -37,27 +35,12 @@ export interface STTConfig {
 }
 
 /**
- * TTS Provider configuration
- */
-export interface TTSConfig {
-  enabled?: boolean;
-  provider: 'elevenlabs';
-  apiKey: string;
-  voiceId: string;
-  modelId?: string;
-  stability?: number;
-  similarityBoost?: number;
-}
-
-/**
  * Voice mode configuration
  */
 export interface VoiceConfig {
   enabled: boolean;
   stt: STTConfig;
-  tts: TTSConfig;
   hotkey: string;
-  interruptEnabled: boolean;
   showTranscription: boolean;
 }
 
@@ -70,20 +53,6 @@ export interface STTProvider {
   startStream(): Promise<void>;
   stopStream(): Promise<string>;
   onPartialTranscript?(callback: (text: string) => void): void;
-  isAvailable(): Promise<boolean>;
-  cleanup(): Promise<void>;
-}
-
-/**
- * TTS Provider interface
- */
-export interface TTSProvider {
-  name: string;
-  initialize(config: TTSConfig): Promise<void>;
-  speak(text: string): Promise<void>;
-  stop(): Promise<void>;
-  onStart?(callback: () => void): void;
-  onEnd?(callback: () => void): void;
   isAvailable(): Promise<boolean>;
   cleanup(): Promise<void>;
 }
@@ -115,5 +84,4 @@ export interface VoiceManagerEvents {
   transcription: (text: string, partial: boolean) => void;
   audioLevel: (level: number) => void;
   error: (error: Error) => void;
-  speaking: (text: string) => void;
 }
