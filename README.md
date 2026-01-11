@@ -1,164 +1,106 @@
-# claude-voice
+# Claude Voice
 
-Voice mode for Claude Code - talk to Claude with push-to-talk.
+Talk to Claude with push-to-talk voice interaction.
+
+## Quick Install (Claude Code Plugin)
+
+Already using Claude Code? Install in seconds:
+
+```
+/plugin marketplace add mtmoore55/claude-voice
+/plugin install voice-mode
+/voice
+```
+
+That's it. The `/voice` command will guide you through setup.
+
+---
 
 ## Features
 
-- **Push-to-Talk**: Hold `Cmd+Option` to speak, release to send
+- **Push-to-Talk**: Hold Right Option to speak, release to send
 - **Natural Voice Output**: Claude responds with ElevenLabs voices
 - **Real-time Visualization**: Animated waveform while recording
-- **Hybrid Mode**: Voice always available alongside text input
-- **Multiple STT Providers**: Choose from Whisper API, Local Whisper, Apple Speech, or Deepgram
+- **Local Speech-to-Text**: Uses whisper.cpp (no API key needed)
 - **Configurable Interruption**: Barge-in to stop Claude mid-sentence
 
-## Installation
+## How It Works
+
+1. **Hold Right Option** - starts recording (you'll see a waveform)
+2. **Speak** - say your prompt naturally
+3. **Release** - stops recording, transcribes, and sends to Claude
+4. **Listen** - Claude's response plays through your speakers
+
+## Requirements
+
+- macOS (Sonoma 14+ recommended)
+- Claude Code installed
+- ElevenLabs API key (free tier works) for voice output
+
+## Manual Installation
+
+If you prefer to install manually instead of using the plugin:
 
 ```bash
-# Install from npm (coming soon)
-npm install -g claude-voice
+# Install dependencies
+brew install sox whisper-cpp
+whisper-cpp --download-model base.en
 
-# Or clone and build locally
-git clone https://github.com/mtmoore55/claude-voice.git
-cd claude-voice
-npm install
-npm run build
-npm link
-```
+# Clone and build
+git clone https://github.com/mtmoore55/claude-voice.git ~/claude-voice
+cd ~/claude-voice
+npm install && npm run build && npm link
 
-### Prerequisites
-
-- **Node.js 18+**
-- **Claude Code**: `npm install -g @anthropic-ai/claude-code`
-- **sox** (for microphone recording): `brew install sox`
-- **API Keys**: OpenAI (for Whisper STT) and/or ElevenLabs (for TTS)
-
-## Quick Start
-
-```bash
-# Run setup wizard to configure STT/TTS providers
+# Configure
 claude-voice setup
 
-# Start Claude Code with voice mode
-claude-voice
-
-# Test your voice configuration
-claude-voice test
+# Set up hotkey
+bash scripts/setup-hotkey.sh
 ```
 
-## Usage
+Then grant Accessibility permission to Hammerspoon in System Settings.
 
-### Commands
+## Commands
 
 | Command | Description |
 |---------|-------------|
-| `claude-voice` | Start Claude Code with voice mode enabled |
-| `claude-voice setup` | Configure STT and TTS providers |
-| `claude-voice test` | Test voice input and output |
-| `claude-voice --no-voice` | Start Claude without voice (passthrough) |
-
-### Voice Interaction
-
-1. **Start**: Run `claude-voice` to launch Claude Code with voice mode
-2. **Speak**: Hold `Cmd+Option` and speak your prompt
-3. **Send**: Release the keys to send your voice input to Claude
-4. **Listen**: Claude's response plays through your speakers while text displays
-
-### Interruption
-
-If interrupt mode is enabled (configured during setup), you can press `Cmd+Option` while Claude is speaking to stop playback and start a new voice input.
+| `claude-voice` | Start Claude with voice mode |
+| `claude-voice setup` | Configure voice settings |
+| `claude-voice test` | Test your configuration |
+| `claude-voice on` | Enable voice in current session |
 
 ## Configuration
 
-Configuration is stored in `~/.claude/voice.json`:
+Settings are stored in `~/.claude/voice.json`:
 
 ```json
 {
   "enabled": true,
   "stt": {
-    "provider": "whisper-api",
-    "apiKey": "sk-..."
+    "provider": "whisper-cpp"
   },
   "tts": {
+    "enabled": true,
     "provider": "elevenlabs",
-    "apiKey": "...",
     "voiceId": "21m00Tcm4TlvDq8ikWAM"
   },
-  "hotkey": "cmd+option",
-  "interruptEnabled": true,
-  "showTranscription": true
+  "hotkey": "right-option",
+  "interruptEnabled": true
 }
 ```
 
-### STT Providers
+## Troubleshooting
 
-| Provider | Description | Requirements |
-|----------|-------------|--------------|
-| `whisper-api` | OpenAI Whisper API | OpenAI API key |
-| `whisper-local` | Local whisper.cpp | Coming soon |
-| `apple-speech` | macOS native | macOS only, coming soon |
-| `deepgram` | Deepgram streaming | Coming soon |
+**Hotkey not working?**
+- Check Hammerspoon is running (look for icon in menu bar)
+- Verify Accessibility permission in System Settings
 
-### TTS Providers
+**No audio output?**
+- Run `claude-voice test` to verify TTS
+- Check your ElevenLabs API key is valid
 
-| Provider | Description | Requirements |
-|----------|-------------|--------------|
-| `elevenlabs` | ElevenLabs streaming | ElevenLabs API key |
-
-## Architecture
-
-```
-claude-voice
-     │
-     ▼
-┌─────────────────────────────────────────────┐
-│           claude-voice CLI                   │
-│  ┌─────────────────────────────────────┐    │
-│  │        Voice Module Manager          │    │
-│  │  (hotkeys, audio, STT, TTS, viz)    │    │
-│  └───────────────┬─────────────────────┘    │
-│                  │                           │
-│  ┌───────────────▼─────────────────────┐    │
-│  │         PTY Wrapper Layer            │    │
-│  │   (spawns claude as child process)   │    │
-│  └───────────────┬─────────────────────┘    │
-└──────────────────┼──────────────────────────┘
-                   │
-                   ▼
-         ┌─────────────────┐
-         │   claude CLI    │
-         │  (unmodified)   │
-         └─────────────────┘
-```
-
-## Development
-
-```bash
-# Install dependencies
-npm install
-
-# Build
-npm run build
-
-# Watch mode
-npm run dev
-
-# Run tests
-npm test
-```
-
-## Roadmap
-
-- [ ] Local Whisper support (whisper.cpp)
-- [ ] Apple Speech Recognition (macOS native)
-- [ ] Deepgram streaming STT
-- [ ] Voice activity detection (VAD)
-- [ ] Continuous conversation mode
-- [ ] Linux and Windows support
-- [ ] Custom hotkey configuration
-
-## Contributing
-
-Contributions welcome! Please open an issue or PR.
+**Transcription issues?**
+- Ensure whisper-cpp model is downloaded: `whisper-cpp --download-model base.en`
 
 ## License
 
@@ -166,4 +108,4 @@ MIT
 
 ## Credits
 
-Built with Claude Code by [Matt Moore](https://github.com/mtmoore55).
+Built by [Matt Moore](https://github.com/mtmoore55) with Claude Code.

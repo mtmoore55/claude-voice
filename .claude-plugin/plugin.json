@@ -1,0 +1,16 @@
+{
+  "name": "voice-mode",
+  "version": "0.1.0",
+  "description": "Voice interaction for Claude Code - talk to Claude with push-to-talk",
+  "author": {
+    "name": "Matt Moore",
+    "url": "https://github.com/mtmoore55"
+  },
+  "homepage": "https://github.com/mtmoore55/claude-voice",
+  "repository": "https://github.com/mtmoore55/claude-voice",
+  "keywords": ["voice", "audio", "speech", "accessibility", "hands-free"],
+  "license": "MIT",
+  "engines": {
+    "claude-code": ">=1.0.0"
+  }
+}

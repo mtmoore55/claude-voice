@@ -1,0 +1,16 @@
+{
+  "name": "claude-voice-marketplace",
+  "description": "Voice interaction plugins for Claude Code",
+  "owner": {
+    "name": "Matt Moore",
+    "url": "https://github.com/mtmoore55"
+  },
+  "plugins": [
+    {
+      "name": "voice-mode",
+      "description": "Talk to Claude with push-to-talk voice interaction",
+      "source": "./",
+      "keywords": ["voice", "audio", "speech", "accessibility"]
+    }
+  ]
+}

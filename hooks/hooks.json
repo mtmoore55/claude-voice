@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "voice|speak|talk|audio|microphone",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "The user seems interested in voice interaction. If they want to use voice mode, suggest running /voice to get started."
+          }
+        ]
+      }
+    ]
+  }
+}
