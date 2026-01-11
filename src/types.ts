@@ -26,11 +26,9 @@ export enum VoiceEvent {
  * STT Provider configuration
  */
 export interface STTConfig {
-  provider: 'whisper-cpp' | 'whisper-api' | 'whisper-local' | 'apple-speech' | 'deepgram';
-  apiKey?: string;
-  model?: string;
+  provider: 'whisper-cpp';
   language?: string;
-  /** Path to whisper.cpp model file (for whisper-cpp provider) */
+  /** Path to whisper.cpp model file */
   modelPath?: string;
 }
 
