@@ -1,71 +1,60 @@
 # Claude Voice
 
-Talk to Claude with push-to-talk voice interaction.
+Talk to Claude Code using your voice. Press **Cmd+.** to record, press again to send.
 
-## Quick Install (Claude Code Plugin)
+## Installation
 
-Already using Claude Code? Install in seconds:
+In Claude Code, run:
 
 ```
 /plugin marketplace add mtmoore55/claude-voice
 /plugin install voice-mode
-/voice
+/voice-mode-start
 ```
 
-That's it. The `/voice` command will guide you through setup.
-
----
-
-## Features
-
-- **Toggle Recording**: Press Cmd+. to start, press again to send
-- **Local Speech-to-Text**: Uses whisper.cpp (no API key needed)
-- **Real-time Visualization**: Animated waveform while recording
-- **Hands-free Input**: Speak instead of type
+The setup will install dependencies and configure everything automatically. You'll need to grant Accessibility permission to Hammerspoon when prompted.
 
 ## How It Works
 
-1. **Press Cmd+.** - starts recording (you'll see a waveform)
-2. **Speak** - say your prompt naturally
-3. **Press Cmd+. again** - stops recording, transcribes, and sends to Claude
-4. **Read** - Claude's response appears as text
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   [Press Cmd+.] → Speak → [Press Cmd+.] → Sent to Claude        │
+│                                                                 │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  ← Waveform            │   │
+│   │  "Voice Ready"                   ← Status               │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+1. **Press Cmd+.** — starts recording, waveform appears
+2. **Speak** — say your prompt naturally
+3. **Press Cmd+.** — stops recording, transcribes your speech, sends to Claude
+4. **Read** — Claude's response appears as text
+
+## Dependencies
+
+The setup installs these automatically:
+
+| Dependency | Purpose |
+|------------|---------|
+| **sox** | Records audio from your microphone |
+| **whisper-cpp** | Transcribes speech to text locally (no API key needed) |
+| **Hammerspoon** | Listens for the Cmd+. hotkey globally |
+
+### Why these choices?
+
+- **Local transcription** — whisper-cpp runs on your Mac, so your voice never leaves your computer
+- **No API keys** — everything works offline after initial setup
+- **System-wide hotkey** — Hammerspoon captures Cmd+. even when Claude Code is in the background
 
 ## Requirements
 
 - macOS (Sonoma 14+ recommended)
 - Claude Code installed
-
-## Manual Installation
-
-If you prefer to install manually instead of using the plugin:
-
-```bash
-# Install dependencies
-brew install sox whisper-cpp
-whisper-cpp --download-model base.en
-
-# Clone and build
-git clone https://github.com/mtmoore55/claude-voice.git ~/claude-voice
-cd ~/claude-voice
-npm install && npm run build && npm link
-
-# Configure
-claude-voice setup
-
-# Set up hotkey
-bash scripts/setup-hotkey.sh
-```
-
-Then grant Accessibility permission to Hammerspoon in System Settings.
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `claude-voice` | Start Claude with voice mode |
-| `claude-voice setup` | Configure voice settings |
-| `claude-voice test` | Test your configuration |
-| `claude-voice on` | Enable voice in current session |
+- ~500MB disk space (for Whisper model)
 
 ## Configuration
 
@@ -85,10 +74,47 @@ Settings are stored in `~/.claude/voice.json`:
 
 **Hotkey not working?**
 - Check Hammerspoon is running (look for icon in menu bar)
-- Verify Accessibility permission in System Settings
+- Grant Accessibility permission: System Settings → Privacy & Security → Accessibility → Enable Hammerspoon
 
-**Transcription issues?**
-- Ensure whisper-cpp model is downloaded: `whisper-cpp --download-model base.en`
+**Transcription not working?**
+- Ensure Whisper model is downloaded: `whisper-cpp --download-model base.en`
+- Check microphone permissions: System Settings → Privacy & Security → Microphone
+
+**"command not found" errors?**
+- Run `/voice-mode-start` again to reinstall dependencies
+
+## Architecture
+
+```
+┌─────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   You       │    │  Hammerspoon     │    │  Voice Daemon   │
+│             │    │  (hotkey)        │    │  (port 17394)   │
+└──────┬──────┘    └────────┬─────────┘    └────────┬────────┘
+       │                    │                       │
+       │ Press Cmd+.        │                       │
+       │───────────────────>│  HTTP /ptt/start      │
+       │                    │──────────────────────>│
+       │                    │                       │
+       │                    │              ┌────────┴────────┐
+       │                    │              │ Start Recording │
+       │                    │              │ Show Waveform   │
+       │                    │              └────────┬────────┘
+       │                    │                       │
+       │ Press Cmd+.        │                       │
+       │───────────────────>│  HTTP /ptt/stop       │
+       │                    │──────────────────────>│
+       │                    │                       │
+       │                    │              ┌────────┴────────┐
+       │                    │              │ Stop Recording  │
+       │                    │              │ Transcribe      │
+       │                    │              │ (whisper-cpp)   │
+       │                    │              └────────┬────────┘
+       │                    │                       │
+       │                    │              ┌────────┴────────┐
+       │                    │              │ Send to Claude  │
+       │   Text Response    │              │ Display Response│
+       │<───────────────────┼──────────────┴─────────────────┘
+```
 
 ## License
 
