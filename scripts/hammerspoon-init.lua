@@ -302,11 +302,12 @@ ensureDaemonRunning = function(callback)
 end
 
 -- Send HTTP request to voice daemon and get response
-local function sendToVoiceDaemon(endpoint, callback)
+local function sendToVoiceDaemon(endpoint, callback, postBody)
     local url = getVoiceDaemonUrl() .. endpoint
-    hs.http.asyncPost(url, "", nil, function(status, body, headers)
+    local body = postBody or ""
+    hs.http.asyncPost(url, body, nil, function(status, responseBody, headers)
         if callback then
-            callback(status, body)
+            callback(status, responseBody)
         end
     end)
 end
@@ -378,13 +379,22 @@ local function pttStop()
     end
 end
 
+-- Keystroke watcher for countdown
+local countdownKeytap = nil
+
 -- Cancel any pending countdown
-local function cancelCountdown()
+local function cancelCountdown(keepText)
     if countdownTimer then
         countdownTimer:stop()
         countdownTimer = nil
     end
+    if countdownKeytap then
+        countdownKeytap:stop()
+        countdownKeytap = nil
+    end
     pendingText = nil
+    -- Tell daemon to clear countdown display
+    sendToVoiceDaemon("/countdown/cancel")
 end
 
 -- Start countdown before sending
@@ -395,19 +405,57 @@ local function startCountdown(text)
     -- Type text first (without submitting)
     typeText(text, false)
 
-    -- Show initial countdown
-    hs.alert.show("Sending in " .. remaining .. "... (Cmd+. to cancel)", 1)
+    -- Tell daemon to show countdown in terminal (pass text for display)
+    sendToVoiceDaemon("/countdown/start", nil, text)
 
+    -- Set up keystroke watcher to detect user input during countdown
+    countdownKeytap = hs.eventtap.new({hs.eventtap.event.types.keyDown}, function(event)
+        local keyCode = event:getKeyCode()
+        local flags = event:getFlags()
+
+        -- Ignore modifier-only presses and Cmd+. (handled separately)
+        if flags.cmd then
+            return false
+        end
+        if flags.ctrl or flags.alt then
+            return false
+        end
+
+        -- Enter key (36) = send immediately
+        if keyCode == 36 then
+            print("Claude Voice: Enter pressed, sending immediately")
+            cancelCountdown(true)
+            sendToVoiceDaemon("/countdown/send")
+            -- Don't block the Enter key - it will submit
+            return false
+        end
+
+        -- Escape key (53) = cancel and clear
+        if keyCode == 53 then
+            print("Claude Voice: Escape pressed, cancelling")
+            cancelCountdown(false)
+            -- Clear the text
+            hs.eventtap.keyStroke({"cmd"}, "a")
+            hs.timer.doAfter(0.05, function()
+                hs.eventtap.keyStroke({}, "delete")
+            end)
+            return true -- Block the escape key
+        end
+
+        -- Any other key (including backspace) = cancel countdown, keep text for editing
+        print("Claude Voice: Key pressed (" .. keyCode .. "), cancelling countdown for editing")
+        cancelCountdown(true)
+        return false -- Let the key through so user can edit
+    end)
+    countdownKeytap:start()
+
+    -- Countdown timer (daemon shows the display)
     countdownTimer = hs.timer.doEvery(1, function()
         remaining = remaining - 1
-        if remaining > 0 then
-            hs.alert.show("Sending in " .. remaining .. "... (Cmd+. to cancel)", 1)
-        else
+        if remaining <= 0 then
             -- Countdown finished, submit
-            countdownTimer:stop()
-            countdownTimer = nil
-            pendingText = nil
-            hs.alert.show("Sent!", 0.5)
+            cancelCountdown(true)
+            sendToVoiceDaemon("/countdown/send")
             hs.eventtap.keyStroke({}, "return")
         end
     end)
@@ -451,17 +499,12 @@ end
 -- ============================================
 
 -- Cmd+. - Toggle recording (primary hotkey)
--- Also cancels countdown if one is active
+-- During countdown: cancels and keeps text for editing
 hs.hotkey.bind({"cmd"}, ".", function()
-    -- If countdown is active, cancel it and clear the text
+    -- If countdown is active, cancel it but KEEP the text for editing
     if countdownTimer then
-        cancelCountdown()
-        -- Select all and delete to clear the typed text
-        hs.eventtap.keyStroke({"cmd"}, "a")
-        hs.timer.doAfter(0.05, function()
-            hs.eventtap.keyStroke({}, "delete")
-        end)
-        hs.alert.show("Cancelled - edit your message or press Cmd+. to record again", 2)
+        cancelCountdown(true)
+        hs.alert.show("Countdown cancelled - edit text and press Enter to send", 2)
         return
     end
 
