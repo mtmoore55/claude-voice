@@ -89,9 +89,9 @@ claude-voice
 
 ### How to Talk to Claude
 
-1. **Press Right Option** - starts recording (you'll see a waveform)
+1. **Press Cmd+.** - starts recording (you'll see a waveform)
 2. **Speak** - say your prompt naturally
-3. **Press Right Option again** - stops recording, transcribes, and sends to Claude
+3. **Press Cmd+. again** - stops recording, transcribes, and sends to Claude
 4. **Read** - Claude's response appears as text
 
 ---

@@ -67,7 +67,7 @@
 │   ╔═══════════════════════════════════════════════════════════╗   │
 │   ║                  ACTIVE VOICE MODE                        ║   │
 │   ║                                                           ║   │
-│   ║   [Press Right Option] → Speak → [Press again] → Sent    ║   │
+│   ║       [Press Cmd+.] → Speak → [Press Cmd+.] → Sent        ║   │
 │   ║                                                           ║   │
 │   ║   ┌─────────────────────────────────────────────────────┐ ║   │
 │   ║   │  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  ← Waveform        │ ║   │
@@ -89,7 +89,7 @@
 │   (You)     │    │  (hotkey detect) │    │  (port 17394)   │
 └──────┬──────┘    └────────┬─────────┘    └────────┬────────┘
        │                    │                       │
-       │ Press Right Option │                       │
+       │ Press Cmd+.        │                       │
        │───────────────────>│                       │
        │                    │  HTTP POST /ptt/start │
        │                    │──────────────────────>│
@@ -122,6 +122,6 @@
 | What | How |
 |------|-----|
 | Start voice | `claude-voice` |
-| Talk | Press Right Option, speak, press again |
+| Talk | Press Cmd+., speak, press Cmd+. again |
 | Test setup | `claude-voice test` |
 | Reconfigure | `claude-voice setup` |
