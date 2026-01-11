@@ -15,7 +15,7 @@ which claude-voice
 
 ### If claude-voice is NOT installed:
 
-Guide the user through installation:
+Guide the user through installation by running these commands for them:
 
 1. **Install dependencies:**
 ```bash
@@ -50,13 +50,15 @@ Tell the user they need to grant Accessibility permission to Hammerspoon:
 
 ### If claude-voice IS installed:
 
-Tell the user voice mode is ready and explain how to use it:
+Start voice mode by running:
+```bash
+claude-voice on
+```
 
-"Voice mode is ready! Here's how to use it:
+Then tell the user:
 
-1. **Start voice mode:** Run `claude-voice` in your terminal
-2. **To talk:** Press **Cmd+.** (Command + Period) to start recording, speak, then press **Cmd+.** again to stop and send.
+"Voice mode is now active!
 
-Would you like me to help you start voice mode now?"
+**To talk:** Press **Cmd+.** (Command + Period) to start recording, speak, then press **Cmd+.** again to stop and send.
 
-If the user says yes, explain they need to run `claude-voice` in their terminal to start a voice-enabled session.
+You can now speak to me instead of typing."
