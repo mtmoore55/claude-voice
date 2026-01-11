@@ -211,8 +211,43 @@ local function getPortForTTY(ttyPath)
     return nil
 end
 
+-- Find any running voice daemon (checks all port files)
+local function findAnyDaemonPort()
+    -- Look for any claude-voice port file
+    local handle = io.popen('ls /tmp/claude-voice-*.port 2>/dev/null')
+    if handle then
+        local files = handle:read("*a")
+        handle:close()
+
+        -- Try each port file
+        for portFile in files:gmatch("[^\n]+") do
+            local fh = io.open(portFile, "r")
+            if fh then
+                local port = fh:read("*a")
+                fh:close()
+                port = port:gsub("%s+", "")
+                local portNum = tonumber(port)
+                if portNum then
+                    -- Verify daemon is actually responding on this port
+                    local checkHandle = io.popen('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 0.5 http://127.0.0.1:' .. portNum .. '/status 2>/dev/null')
+                    if checkHandle then
+                        local result = checkHandle:read("*a")
+                        checkHandle:close()
+                        if result == "200" then
+                            print("Claude Voice: Found running daemon on port " .. portNum)
+                            return portNum
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return nil
+end
+
 -- Get the voice daemon URL for the focused terminal
 getVoiceDaemonUrl = function()
+    -- First try to find port for focused terminal's TTY
     local tty = getFocusedTerminalTTY()
     local port = getPortForTTY(tty)
 
@@ -221,7 +256,14 @@ getVoiceDaemonUrl = function()
         return "http://127.0.0.1:" .. port
     end
 
-    -- Fallback to default port
+    -- Fallback: find ANY running daemon
+    local anyPort = findAnyDaemonPort()
+    if anyPort then
+        currentDaemonPort = anyPort
+        return "http://127.0.0.1:" .. anyPort
+    end
+
+    -- Ultimate fallback to default port
     currentDaemonPort = 17394
     return "http://127.0.0.1:17394"
 end
