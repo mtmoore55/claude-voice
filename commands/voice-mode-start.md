@@ -50,28 +50,13 @@ Tell the user they need to grant Accessibility permission to Hammerspoon:
 
 ### If claude-voice IS installed:
 
-Check if it's configured:
-```bash
-cat ~/.claude/voice.json 2>/dev/null || echo "not configured"
-```
-
-If not configured, run:
-```bash
-claude-voice setup
-```
-
-### Starting voice mode
-
-Once everything is set up, tell the user:
+Tell the user voice mode is ready and explain how to use it:
 
 "Voice mode is ready! Here's how to use it:
 
-1. **Start voice mode:** Run `claude-voice` in your terminal (this will replace the current Claude session with a voice-enabled one)
+1. **Start voice mode:** Run `claude-voice` in your terminal
+2. **To talk:** Press **Cmd+.** (Command + Period) to start recording, speak, then press **Cmd+.** again to stop and send.
 
-2. **Or enable in this session:** Run `claude-voice on` to add voice to your current session
-
-3. **To talk:** Press **Right Option** to start recording, speak, then press **Right Option** again to stop and send.
-
-Would you like me to start voice mode now?"
+Would you like me to help you start voice mode now?"
 
 If the user says yes, explain they need to run `claude-voice` in their terminal to start a voice-enabled session.
