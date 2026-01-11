@@ -19,23 +19,21 @@ That's it. The `/voice` command will guide you through setup.
 ## Features
 
 - **Push-to-Talk**: Hold Right Option to speak, release to send
-- **Natural Voice Output**: Claude responds with ElevenLabs voices
-- **Real-time Visualization**: Animated waveform while recording
 - **Local Speech-to-Text**: Uses whisper.cpp (no API key needed)
-- **Configurable Interruption**: Barge-in to stop Claude mid-sentence
+- **Real-time Visualization**: Animated waveform while recording
+- **Hands-free Input**: Speak instead of type
 
 ## How It Works
 
 1. **Hold Right Option** - starts recording (you'll see a waveform)
 2. **Speak** - say your prompt naturally
 3. **Release** - stops recording, transcribes, and sends to Claude
-4. **Listen** - Claude's response plays through your speakers
+4. **Read** - Claude's response appears as text
 
 ## Requirements
 
 - macOS (Sonoma 14+ recommended)
 - Claude Code installed
-- ElevenLabs API key (free tier works) for voice output
 
 ## Manual Installation
 
@@ -79,13 +77,7 @@ Settings are stored in `~/.claude/voice.json`:
   "stt": {
     "provider": "whisper-cpp"
   },
-  "tts": {
-    "enabled": true,
-    "provider": "elevenlabs",
-    "voiceId": "21m00Tcm4TlvDq8ikWAM"
-  },
-  "hotkey": "right-option",
-  "interruptEnabled": true
+  "hotkey": "right-option"
 }
 ```
 
@@ -94,10 +86,6 @@ Settings are stored in `~/.claude/voice.json`:
 **Hotkey not working?**
 - Check Hammerspoon is running (look for icon in menu bar)
 - Verify Accessibility permission in System Settings
-
-**No audio output?**
-- Run `claude-voice test` to verify TTS
-- Check your ElevenLabs API key is valid
 
 **Transcription issues?**
 - Ensure whisper-cpp model is downloaded: `whisper-cpp --download-model base.en`

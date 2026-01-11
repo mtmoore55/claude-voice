@@ -18,15 +18,7 @@
                     │
                     ▼
 ┌───────────────────────────────────────┐
-│  STEP 2: CLAUDE CODE                  │
-│                                       │
-│  npm install -g @anthropic-ai/claude-code  │
-│  claude  ← (authenticates via browser)│
-└───────────────────┬───────────────────┘
-                    │
-                    ▼
-┌───────────────────────────────────────┐
-│  STEP 3: CLAUDE VOICE                 │
+│  STEP 2: CLAUDE VOICE                 │
 │                                       │
 │  git clone github.com/mtmoore55/claude-voice  │
 │  cd claude-voice                      │
@@ -36,31 +28,19 @@
                     │
                     ▼
 ┌───────────────────────────────────────┐
-│  STEP 4: GET API KEY                  │
-│                                       │
-│  → elevenlabs.io                      │
-│  → Create account (free tier)         │
-│  → Copy API key (sk_...)              │
-└───────────────────┬───────────────────┘
-                    │
-                    ▼
-┌───────────────────────────────────────┐
-│  STEP 5: SETUP WIZARD                 │
+│  STEP 3: SETUP WIZARD                 │
 │                                       │
 │  claude-voice setup                   │
 │                                       │
 │  ┌─────────────────────────────────┐  │
-│  │ Choose STT: whisper-cpp (local) │  │
-│  │ Enable TTS: Yes                 │  │
-│  │ ElevenLabs key: [paste]         │  │
-│  │ Voice: Rachel                   │  │
-│  │ Interruption: Yes               │  │
+│  │ Configures whisper-cpp (local)  │  │
+│  │ No API keys needed              │  │
 │  └─────────────────────────────────┘  │
 └───────────────────┬───────────────────┘
                     │
                     ▼
 ┌───────────────────────────────────────┐
-│  STEP 6: HOTKEY SETUP                 │
+│  STEP 4: HOTKEY SETUP                 │
 │                                       │
 │  bash scripts/setup-hotkey.sh         │
 │                                       │
@@ -76,7 +56,7 @@
                     │
                     ▼
 ┌───────────────────────────────────────┐
-│  STEP 7: START USING                  │
+│  STEP 5: START USING                  │
 │                                       │
 │  claude-voice                         │
 └───────────────────┬───────────────────┘
@@ -87,7 +67,7 @@
 │   ╔═══════════════════════════════════════════════════════════╗   │
 │   ║                  ACTIVE VOICE MODE                        ║   │
 │   ║                                                           ║   │
-│   ║   [Hold Right Option] → Speak → [Release] → Claude responds   ║
+│   ║   [Hold Right Option] → Speak → [Release] → Text sent    ║   │
 │   ║                                                           ║   │
 │   ║   ┌─────────────────────────────────────────────────────┐ ║   │
 │   ║   │  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  ← Waveform        │ ║   │
@@ -132,12 +112,7 @@
        │                    │                       │
        │                    │              ┌────────┴────────┐
        │                    │              │ Send to Claude  │
-       │                    │              │ Get Response    │
-       │                    │              └────────┬────────┘
-       │                    │                       │
-       │                    │              ┌────────┴────────┐
-       │                    │              │ TTS (ElevenLabs)│
-       │   Audio Output     │              │ Play Audio      │
+       │   Text Response    │              │ Display Response│
        │<───────────────────┼──────────────┴─────────────────┘
        │                    │
 ```
@@ -148,6 +123,5 @@
 |------|-----|
 | Start voice | `claude-voice` |
 | Talk | Hold Right Option, speak, release |
-| Interrupt | Press Right Option while Claude speaks |
 | Test setup | `claude-voice test` |
 | Reconfigure | `claude-voice setup` |
