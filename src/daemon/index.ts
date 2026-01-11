@@ -19,11 +19,13 @@ export class VoiceDaemon extends EventEmitter {
   private ttsProvider: TTSProvider | null = null;
   private visualizer: TTYVisualizer;
   private isRunning = false;
+  private ttyPath: string | null;
 
-  constructor(config: VoiceConfig) {
+  constructor(config: VoiceConfig, port: number = 17394, ttyPath: string | null = null) {
     super();
     this.config = config;
-    this.hotkeyListener = new HotkeyListener();
+    this.ttyPath = ttyPath;
+    this.hotkeyListener = new HotkeyListener(port);
     this.audioEngine = new AudioEngine();
     this.visualizer = new TTYVisualizer();
     this.setupEventHandlers();
@@ -44,6 +46,14 @@ export class VoiceDaemon extends EventEmitter {
     console.log('Initializing TTS provider...');
     this.ttsProvider = await createTTSProvider(this.config.tts);
     console.log('TTS provider ready.');
+
+    // Set TTY for visualizer if we have one
+    if (this.ttyPath) {
+      console.log(`Setting TTY for visualizer: ${this.ttyPath}`);
+      this.visualizer.setTTY(this.ttyPath);
+      // Show ready indicator on startup
+      this.visualizer.showReady();
+    }
 
     // Start listening for hotkeys
     console.log('Starting hotkey listener...');
@@ -166,10 +176,14 @@ export class VoiceDaemon extends EventEmitter {
 
     this.hotkeyListener.on('countdown:cancel', () => {
       this.visualizer.cancelCountdown();
+      // Restore ready indicator after cancel
+      setTimeout(() => this.visualizer.showReady(), 100);
     });
 
     this.hotkeyListener.on('countdown:send', () => {
       this.visualizer.showSent();
+      // Restore ready indicator after "Sent!" display (showSent has 1s delay)
+      setTimeout(() => this.visualizer.showReady(), 1200);
     });
 
     // Handle state events

@@ -131,7 +131,9 @@ program
 program
   .command('on')
   .description('Enable voice mode in current session (runs as background daemon)')
-  .action(async () => {
+  .option('--port <port>', 'Port to listen on (default: derived from TTY)')
+  .option('--tty <path>', 'TTY path for this session (default: auto-detect)')
+  .action(async (options) => {
     console.log(chalk.cyan('\n  Starting Voice Daemon\n'));
 
     const config = await loadConfig();
@@ -140,25 +142,111 @@ program
       process.exit(1);
     }
 
-    const daemon = new VoiceDaemon(config);
+    // Auto-detect TTY if not provided
+    let ttyPath = options.tty;
+    if (!ttyPath) {
+      const { execSync } = await import('child_process');
 
-    // Handle shutdown
-    process.on('SIGINT', async () => {
+      // First try direct tty command
+      try {
+        const directTty = execSync('tty', { encoding: 'utf-8' }).trim();
+        if (directTty && !directTty.includes('not a tty')) {
+          ttyPath = directTty;
+        }
+      } catch {
+        // Ignore
+      }
+
+      // If that fails, walk up process tree to find parent terminal's TTY
+      if (!ttyPath) {
+        try {
+          // Walk up the process tree from this Node process until we find one with a real TTY
+          const nodePid = process.pid;
+          const script = `
+            pid=${nodePid}
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              tty=$(ps -o tty= -p $pid 2>/dev/null | tr -d ' ')
+              if [ -n "$tty" ] && [ "$tty" != "??" ]; then
+                echo "$tty"
+                exit 0
+              fi
+              ppid=$(ps -o ppid= -p $pid 2>/dev/null | tr -d ' ')
+              if [ -z "$ppid" ] || [ "$ppid" = "1" ]; then break; fi
+              pid=$ppid
+            done
+          `;
+          const parentTty = execSync(script, { encoding: 'utf-8', shell: '/bin/bash' }).trim();
+
+          if (parentTty && parentTty !== '??' && parentTty !== '') {
+            // Normalize TTY path
+            if (parentTty.startsWith('/dev/')) {
+              ttyPath = parentTty;
+            } else if (parentTty.match(/^ttys?\d+$/)) {
+              ttyPath = '/dev/' + parentTty;
+            } else if (parentTty.match(/^s\d+$/)) {
+              ttyPath = '/dev/tty' + parentTty;
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }
+    }
+
+    // Calculate port from TTY or use provided/default
+    let port = options.port ? parseInt(options.port, 10) : 17394;
+    let portFile: string | null = null;
+
+    if (ttyPath) {
+      // Extract TTY name (e.g., /dev/ttys002 -> ttys002)
+      const ttyName = ttyPath.replace('/dev/', '');
+
+      // If no explicit port, derive from TTY name
+      if (!options.port) {
+        // Hash TTY name to get a port in range 17400-17499
+        let hash = 0;
+        for (let i = 0; i < ttyName.length; i++) {
+          hash = ((hash << 5) - hash) + ttyName.charCodeAt(i);
+          hash = hash & hash;
+        }
+        port = 17400 + (Math.abs(hash) % 100);
+      }
+
+      // Write port file for Hammerspoon discovery
+      const fs = await import('fs');
+      portFile = `/tmp/claude-voice-${ttyName}.port`;
+      fs.writeFileSync(portFile, port.toString());
+      console.log(`Port file: ${portFile}`);
+    }
+
+    console.log(`TTY: ${ttyPath || 'unknown'}`);
+    console.log(`Port: ${port}`);
+
+    const daemon = new VoiceDaemon(config, port, ttyPath);
+
+    // Handle shutdown - clean up port file
+    const cleanup = async () => {
       console.log('\n  Stopping voice daemon...');
+      if (portFile) {
+        const fs = await import('fs');
+        try { fs.unlinkSync(portFile); } catch {}
+      }
       await daemon.stop();
       process.exit(0);
-    });
+    };
 
-    process.on('SIGTERM', async () => {
-      await daemon.stop();
-      process.exit(0);
-    });
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
 
     try {
       await daemon.start();
       // Keep process running
     } catch (error) {
       console.error(chalk.red('Failed to start voice daemon:'), error);
+      if (portFile) {
+        const fs = await import('fs');
+        try { fs.unlinkSync(portFile); } catch {}
+      }
       process.exit(1);
     }
   });

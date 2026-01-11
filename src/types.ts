@@ -40,6 +40,7 @@ export interface STTConfig {
  * TTS Provider configuration
  */
 export interface TTSConfig {
+  enabled?: boolean;
   provider: 'elevenlabs';
   apiKey: string;
   voiceId: string;

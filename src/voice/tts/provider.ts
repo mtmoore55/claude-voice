@@ -40,9 +40,29 @@ export interface Voice {
 }
 
 /**
+ * No-op TTS provider for when TTS is disabled
+ */
+class NoOpTTSProvider implements TTSProvider {
+  name = 'disabled';
+  async initialize(): Promise<void> {}
+  async speak(): Promise<void> {}
+  async stop(): Promise<void> {}
+  onStart(): void {}
+  onEnd(): void {}
+  async isAvailable(): Promise<boolean> { return false; }
+  async getVoices(): Promise<Voice[]> { return []; }
+  async cleanup(): Promise<void> {}
+}
+
+/**
  * Factory function to create TTS provider based on config
  */
 export async function createTTSProvider(config: TTSConfig): Promise<TTSProvider> {
+  // Return no-op provider if TTS is disabled
+  if (config.enabled === false) {
+    return new NoOpTTSProvider();
+  }
+
   switch (config.provider) {
     case 'elevenlabs': {
       const { ElevenLabsProvider } = await import('./elevenlabs.js');

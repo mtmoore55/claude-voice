@@ -1,26 +1,231 @@
 -- Claude Voice - Hammerspoon Configuration
 -- Full voice-to-text flow: hold key → speak → release → text typed into Claude
+-- Per-session daemon support: each terminal has its own daemon
 
 require("hs.ipc")
-
-local VOICE_DAEMON_PORT = 17394
-local VOICE_DAEMON_URL = "http://127.0.0.1:" .. VOICE_DAEMON_PORT
 
 -- Forward declarations
 local startResponseMonitor
 local ensureDaemonRunning
+local getVoiceDaemonUrl
 
 -- Track PTT state
 local pttActive = false
 local recordingAlert = nil
 local daemonStarting = false
+local currentDaemonPort = nil
 
 -- Auto-submit mode (set to true for full voice conversation)
 local autoSubmitEnabled = true
 
--- Check if daemon is running
+-- Set terminal title to show recording status
+local function setTerminalTitle(title)
+    local app = hs.application.frontmostApplication()
+    if not app then return end
+
+    local appName = app:name()
+    if appName == "Terminal" or appName == "iTerm2" or appName == "iTerm" then
+        -- Use ANSI escape sequence to set terminal title
+        -- Write directly via osascript
+        local script
+        if appName == "Terminal" then
+            script = string.format([[
+                tell application "Terminal"
+                    set custom title of front window to "%s"
+                end tell
+            ]], title)
+        else
+            script = string.format([[
+                tell application "iTerm2"
+                    tell current session of current window
+                        set name to "%s"
+                    end tell
+                end tell
+            ]], title)
+        end
+        hs.osascript.applescript(script)
+    end
+end
+
+-- Restore terminal title
+local function restoreTerminalTitle()
+    local app = hs.application.frontmostApplication()
+    if not app then return end
+
+    local appName = app:name()
+    if appName == "Terminal" then
+        hs.osascript.applescript([[
+            tell application "Terminal"
+                set custom title of front window to ""
+            end tell
+        ]])
+    elseif appName == "iTerm2" or appName == "iTerm" then
+        hs.osascript.applescript([[
+            tell application "iTerm2"
+                tell current session of current window
+                    set name to ""
+                end tell
+            end tell
+        ]])
+    end
+end
+
+-- Get TTY for the focused terminal window
+-- Uses Hammerspoon's window detection + System Events for accuracy
+local function getFocusedTerminalTTY()
+    local focusedApp = hs.application.frontmostApplication()
+    if not focusedApp then
+        print("Claude Voice: No focused app")
+        return nil
+    end
+
+    local appName = focusedApp:name()
+    print("Claude Voice: Focused app is " .. appName)
+
+    -- Handle Terminal.app
+    if appName == "Terminal" then
+        -- Get the focused window from Hammerspoon (more reliable than AppleScript)
+        local focusedWindow = focusedApp:focusedWindow()
+        if focusedWindow then
+            local windowId = focusedWindow:id()
+            local windowTitle = focusedWindow:title() or ""
+            local windowFrame = focusedWindow:frame()
+            print("Claude Voice: Hammerspoon focused window ID: " .. tostring(windowId))
+            print("Claude Voice: Hammerspoon focused window title: " .. windowTitle)
+            print("Claude Voice: Window position: x=" .. tostring(windowFrame.x) .. " y=" .. tostring(windowFrame.y))
+
+            -- Use System Events to find which Terminal window has keyboard focus
+            -- Then match by position since System Events and Terminal share coordinates
+            local script = string.format([[
+                tell application "System Events"
+                    tell process "Terminal"
+                        set focusedWinName to ""
+                        try
+                            -- Get the focused window (the one with keyboard focus)
+                            repeat with w in windows
+                                if focused of w is true then
+                                    set focusedWinName to name of w
+                                    exit repeat
+                                end if
+                            end repeat
+                        end try
+                        if focusedWinName is "" then
+                            -- Fallback: use window 1
+                            if (count of windows) > 0 then
+                                set focusedWinName to name of window 1
+                            end if
+                        end if
+                        return focusedWinName
+                    end tell
+                end tell
+            ]])
+            local ok, focusedWinName = hs.osascript.applescript(script)
+
+            if ok and focusedWinName and focusedWinName ~= "" then
+                print("Claude Voice: System Events focused window: " .. focusedWinName)
+
+                -- Now get the TTY for this window from Terminal.app
+                local ttyScript = string.format([[
+                    tell application "Terminal"
+                        repeat with w in windows
+                            if name of w is "%s" then
+                                return tty of selected tab of w
+                            end if
+                        end repeat
+                        -- Fallback
+                        if (count of windows) > 0 then
+                            return tty of selected tab of window 1
+                        end if
+                    end tell
+                ]], focusedWinName:gsub('"', '\\"'))
+                local ok2, ttyPath = hs.osascript.applescript(ttyScript)
+                if ok2 and ttyPath then
+                    print("Claude Voice: Got TTY via System Events: " .. ttyPath)
+                    return ttyPath
+                end
+            end
+        end
+
+        -- Ultimate fallback: just use Terminal's front window
+        print("Claude Voice: Falling back to Terminal front window")
+        local fallbackScript = [[
+            tell application "Terminal"
+                if (count of windows) > 0 then
+                    return tty of selected tab of front window
+                end if
+            end tell
+        ]]
+        local ok3, result3 = hs.osascript.applescript(fallbackScript)
+        if ok3 and result3 then
+            print("Claude Voice: Fallback TTY: " .. result3)
+            return result3
+        end
+    end
+
+    -- Handle iTerm2
+    if appName == "iTerm2" or appName == "iTerm" then
+        local script = [[
+            tell application "iTerm2"
+                if (count of windows) > 0 then
+                    tell current session of current window
+                        return tty
+                    end tell
+                end if
+            end tell
+        ]]
+        local ok, result = hs.osascript.applescript(script)
+        if ok and result then
+            print("Claude Voice: iTerm TTY: " .. result)
+            return result
+        end
+    end
+
+    print("Claude Voice: Could not detect TTY")
+    return nil
+end
+
+-- Get the voice daemon port for a given TTY
+local function getPortForTTY(ttyPath)
+    if not ttyPath then return nil end
+
+    -- Extract TTY name (e.g., /dev/ttys002 -> ttys002)
+    local ttyName = ttyPath:gsub("/dev/", "")
+
+    -- Check for port file
+    local portFile = "/tmp/claude-voice-" .. ttyName .. ".port"
+    local handle = io.open(portFile, "r")
+    if handle then
+        local port = handle:read("*a")
+        handle:close()
+        port = port:gsub("%s+", "")
+        local portNum = tonumber(port)
+        if portNum then
+            return portNum
+        end
+    end
+
+    return nil
+end
+
+-- Get the voice daemon URL for the focused terminal
+getVoiceDaemonUrl = function()
+    local tty = getFocusedTerminalTTY()
+    local port = getPortForTTY(tty)
+
+    if port then
+        currentDaemonPort = port
+        return "http://127.0.0.1:" .. port
+    end
+
+    -- Fallback to default port
+    currentDaemonPort = 17394
+    return "http://127.0.0.1:17394"
+end
+
+-- Check if daemon is running for focused terminal
 local function isDaemonRunning()
-    local handle = io.popen('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 ' .. VOICE_DAEMON_URL .. '/status 2>/dev/null')
+    local url = getVoiceDaemonUrl()
+    local handle = io.popen('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 ' .. url .. '/status 2>/dev/null')
     if handle then
         local result = handle:read("*a")
         handle:close()
@@ -29,58 +234,30 @@ local function isDaemonRunning()
     return false
 end
 
--- Start the daemon in background
+-- Start the daemon in background (no longer auto-starts - daemon should be started per-session)
 ensureDaemonRunning = function(callback)
     if isDaemonRunning() then
         if callback then callback(true) end
         return
     end
 
-    if daemonStarting then
-        -- Already starting, wait a bit and check again
-        hs.timer.doAfter(1, function()
-            if callback then callback(isDaemonRunning()) end
-        end)
-        return
-    end
-
-    daemonStarting = true
-    print("Claude Voice: Starting daemon...")
-    hs.alert.show("Starting voice daemon...", 2)
-
-    -- Start claude-voice in background
-    local task = hs.task.new("/opt/homebrew/bin/node", function(exitCode, stdOut, stdErr)
-        -- This callback runs when the process exits (which we don't want)
-        print("Claude Voice: Daemon exited with code " .. tostring(exitCode))
-        daemonStarting = false
-    end, function(task, stdOut, stdErr)
-        -- Stream callback - daemon is running
-        if stdOut and stdOut:find("Voice daemon started") then
-            print("Claude Voice: Daemon started successfully")
-            daemonStarting = false
-            if callback then callback(true) end
-        end
-        return true
-    end, {"/opt/homebrew/lib/node_modules/claude-voice/dist/cli.js", "on"})
-
-    if task then
-        task:start()
-        -- Give it time to start, then check
-        hs.timer.doAfter(3, function()
-            daemonStarting = false
-            if callback then callback(isDaemonRunning()) end
-        end)
+    -- Per-session mode: daemon should already be running in the terminal
+    -- Show a helpful message instead of auto-starting
+    local tty = getFocusedTerminalTTY()
+    if tty then
+        print("Claude Voice: No daemon found for TTY " .. tty)
+        hs.alert.show("Voice not enabled in this terminal.\nRun: claude-voice on", 3)
     else
-        print("Claude Voice: Failed to start daemon task")
-        daemonStarting = false
-        hs.alert.show("Failed to start voice daemon", 2)
-        if callback then callback(false) end
+        print("Claude Voice: No terminal focused or TTY not found")
+        hs.alert.show("Focus a terminal with voice enabled", 2)
     end
+
+    if callback then callback(false) end
 end
 
 -- Send HTTP request to voice daemon and get response
 local function sendToVoiceDaemon(endpoint, callback)
-    local url = VOICE_DAEMON_URL .. endpoint
+    local url = getVoiceDaemonUrl() .. endpoint
     hs.http.asyncPost(url, "", nil, function(status, body, headers)
         if callback then
             callback(status, body)
@@ -107,14 +284,10 @@ local function typeText(text, autoSubmit)
                 hs.pasteboard.setContents(oldClipboard)
             end
 
-            -- Auto-submit and start response monitor if requested
+            -- Auto-submit if requested (TTS disabled)
             if autoSubmit then
                 hs.timer.doAfter(0.1, function()
                     hs.eventtap.keyStroke({}, "return")
-                    -- Start monitoring for Claude's response
-                    hs.timer.doAfter(0.5, function()
-                        startResponseMonitor()
-                    end)
                 end)
             end
         end)
@@ -141,18 +314,23 @@ local function findClaudeTTY()
     return nil
 end
 
--- Send TTY path to daemon
+-- Send TTY path to daemon (uses focused terminal detection)
+-- Returns the TTY that was detected
 local function sendTTYToDaemon()
-    local tty = findClaudeTTY()
+    local tty = getFocusedTerminalTTY()
     if tty then
-        print("Claude Voice: Found TTY: " .. tty)
-        hs.http.asyncPost(VOICE_DAEMON_URL .. "/tty", tty, nil, function(status, body, headers)
-            if status == 200 then
-                print("Claude Voice: TTY set successfully")
-            end
-        end)
+        print("Claude Voice: Sending TTY to daemon: " .. tty)
+        -- Use synchronous call to ensure TTY is set before PTT starts
+        local status, body = hs.http.post(getVoiceDaemonUrl() .. "/tty", tty, nil)
+        if status == 200 then
+            print("Claude Voice: TTY set successfully to " .. tty)
+        else
+            print("Claude Voice: Failed to set TTY, status: " .. tostring(status))
+        end
+        return tty
     else
-        print("Claude Voice: Could not find Claude TTY")
+        print("Claude Voice: Could not detect focused terminal TTY")
+        return nil
     end
 end
 
@@ -161,14 +339,16 @@ local function pttStart()
     if pttActive then return end
 
     -- Ensure daemon is running before starting PTT
+    -- Note: We do NOT override the daemon's TTY - the daemon knows its own TTY
+    -- from startup and should render to that terminal
     ensureDaemonRunning(function(success)
         if success then
-            -- Send TTY path for waveform display
-            sendTTYToDaemon()
-
             pttActive = true
-            print("Claude Voice: Recording started")
+            print("Claude Voice: Recording started (port " .. tostring(currentDaemonPort) .. ")")
             sendToVoiceDaemon("/ptt/start")
+
+            -- Show recording in terminal title
+            setTerminalTitle("🎤 RECORDING...")
         else
             hs.alert.show("Voice daemon not available", 2)
         end
@@ -184,6 +364,9 @@ local function pttStop()
         -- Stop recording and wait for transcription
         sendToVoiceDaemon("/ptt/stop")
 
+        -- Restore terminal title
+        restoreTerminalTitle()
+
         -- Poll for transcription result
         hs.timer.doAfter(0.5, function()
             checkTranscription()
@@ -194,7 +377,7 @@ end
 -- Check for transcription result
 local transcriptionAttempts = 0
 function checkTranscription()
-    hs.http.asyncGet(VOICE_DAEMON_URL .. "/transcription", nil, function(status, body, headers)
+    hs.http.asyncGet(getVoiceDaemonUrl() .. "/transcription", nil, function(status, body, headers)
         if status == 200 and body and body ~= "" then
             local text = body:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
             if text ~= "" then
@@ -247,7 +430,16 @@ f5Hotkey:enable()
 -- TOGGLE MODE
 -- ============================================
 
--- Ctrl+Option+Space - Toggle mode
+-- Cmd+. - Toggle recording (primary hotkey)
+hs.hotkey.bind({"cmd"}, ".", function()
+    if pttActive then
+        pttStop()
+    else
+        pttStart()
+    end
+end)
+
+-- Ctrl+Option+Space - Toggle mode (legacy)
 hs.hotkey.bind({"ctrl", "alt"}, "space", function()
     if pttActive then
         pttStop()
@@ -303,7 +495,7 @@ local function speakText(text)
         text = text:sub(1, 500) .. "..."
     end
 
-    hs.http.asyncPost(VOICE_DAEMON_URL .. "/speak", text, nil, function(status, body, headers)
+    hs.http.asyncPost(getVoiceDaemonUrl() .. "/speak", text, nil, function(status, body, headers)
         if status ~= 200 then
             print("Claude Voice: TTS failed - " .. tostring(status))
         end
@@ -423,16 +615,14 @@ end)
 hs.hotkey.bind({"cmd", "ctrl"}, "h", function()
     hs.alert.show([[
 Claude Voice Hotkeys:
-• Ctrl+Option+Space - Toggle recording
-• Hold Right Cmd - Talk
+• Cmd+. - Toggle recording
 • Hold F5 - Talk
-• Ctrl+Option+S - Speak last response
 • Cmd+Ctrl+R - Reload config
 ]], 5)
 end)
 
 -- Notify ready
-hs.alert.show("Claude Voice ready! Hold Right Cmd or F5 to talk", 3)
+hs.alert.show("Claude Voice ready! Press Cmd+. to talk", 3)
 
 print("Claude Voice: Configuration loaded")
-print("Claude Voice: Hold Right Command or F5 to talk")
+print("Claude Voice: Press Cmd+. to talk")

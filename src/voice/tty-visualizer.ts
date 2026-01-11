@@ -8,10 +8,10 @@ import * as fs from 'fs';
 import { spawn } from 'child_process';
 
 const BLOCKS = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-const BAR_COUNT = 24;
+const BAR_COUNT = 16;
 const DECAY_RATE = 0.85;
 const SMOOTHING = 0.3;
-const SENSITIVITY = 50; // Increased for low mic levels
+const SENSITIVITY = 50;
 
 export type VoiceUIState = 'ready' | 'recording' | 'countdown' | 'sent' | 'hidden';
 
@@ -20,12 +20,12 @@ export class TTYVisualizer {
   private smoothedLevels: number[] = [];
   private intervalId: NodeJS.Timeout | null = null;
   private countdownIntervalId: NodeJS.Timeout | null = null;
+  private readyIntervalId: NodeJS.Timeout | null = null;
   private isActive = false;
   private _ttyPath: string | null = null;
   private ttyFd: number | null = null;
   private state: VoiceUIState = 'hidden';
   private countdownValue = 3;
-  private transcriptionPreview = '';
   private lastRenderedLine = '';
 
   constructor() {
@@ -59,18 +59,38 @@ export class TTYVisualizer {
     if (this.ttyFd !== null) {
       try {
         fs.writeSync(this.ttyFd, data);
-      } catch (error) {
+      } catch {
         // TTY might have closed
       }
     }
   }
 
   /**
-   * Show ready state
+   * Show ready state - sets internal state only
+   * The actual "Voice Ready" indicator is shown by statusline.sh to avoid flashing
+   * Direct TTY writes conflict with Claude Code's TUI redraws and cause flickering
    */
   showReady(): void {
+    // Stop any existing ready interval
+    if (this.readyIntervalId) {
+      clearInterval(this.readyIntervalId);
+      this.readyIntervalId = null;
+    }
+
     this.state = 'ready';
-    this.renderState();
+
+    // Don't write directly to TTY - let statusline.sh handle the "Voice Ready" indicator
+    // This prevents flashing that occurs when direct TTY writes conflict with TUI redraws
+  }
+
+  /**
+   * Stop the ready indicator refresh
+   */
+  private stopReadyIndicator(): void {
+    if (this.readyIntervalId) {
+      clearInterval(this.readyIntervalId);
+      this.readyIntervalId = null;
+    }
   }
 
   /**
@@ -81,12 +101,15 @@ export class TTYVisualizer {
     this.isActive = true;
     this.state = 'recording';
 
+    // Stop ready indicator when recording starts
+    this.stopReadyIndicator();
+
     this.playSound('start');
 
-    // Update display at 30fps
+    // Update waveform display at 10fps (reduced from 30fps to minimize flickering)
     this.intervalId = setInterval(() => {
       this.renderRecording();
-    }, 33);
+    }, 100);
   }
 
   /**
@@ -101,15 +124,31 @@ export class TTYVisualizer {
     this.playSound('stop');
     this.levels.fill(0);
     this.smoothedLevels.fill(0);
+
+    // Clear the REC indicator from the TTY
+    if (this.ttyFd !== null) {
+      try {
+        // Save cursor, move to bottom, clear line, restore cursor
+        fs.writeSync(this.ttyFd, '\x1b7\x1b[999;1H\x1b[2K\x1b8');
+      } catch {
+        // Ignore errors
+      }
+    }
+
+    // Remove waveform file so statusline shows "Voice Ready" again
+    try {
+      fs.unlinkSync('/tmp/claude-voice-waveform');
+    } catch {
+      // Ignore if file doesn't exist
+    }
   }
 
   /**
-   * Start countdown with transcription preview
+   * Start countdown (transcription parameter kept for API compatibility)
    */
-  startCountdown(transcription: string, seconds: number = 3): void {
+  startCountdown(_transcription: string, seconds: number = 3): void {
     this.state = 'countdown';
     this.countdownValue = seconds;
-    this.transcriptionPreview = transcription;
 
     this.renderState();
 
@@ -141,7 +180,7 @@ export class TTYVisualizer {
   }
 
   /**
-   * Show sent confirmation
+   * Show sent confirmation (showReady will be called by daemon after this)
    */
   showSent(): void {
     if (this.countdownIntervalId) {
@@ -150,12 +189,7 @@ export class TTYVisualizer {
     }
     this.state = 'sent';
     this.renderState();
-
-    // Hide after 1 second
-    setTimeout(() => {
-      this.state = 'hidden';
-      this.clearLine();
-    }, 1000);
+    // Don't auto-hide - let showReady() handle the transition
   }
 
   /**
@@ -184,15 +218,13 @@ export class TTYVisualizer {
 
     switch (this.state) {
       case 'ready':
-        line = `${cyan}🎙️ Voice Ready${reset} ${dim}(Hold Right ⌥ to talk)${reset}`;
+        line = `${cyan}🎙️ Voice Ready${reset} ${dim}(⌘. to talk)${reset}`;
         break;
 
       case 'countdown':
-        const preview = this.transcriptionPreview.length > 30
-          ? this.transcriptionPreview.substring(0, 30) + '...'
-          : this.transcriptionPreview;
+        // Just show countdown number, no duplicate text preview
         const countdownStr = this.countdownValue > 0 ? `${this.countdownValue}...` : 'Sending...';
-        line = `${yellow}📤${reset} "${preview}" ${bold}${countdownStr}${reset} ${dim}(↵=send, type to edit)${reset}`;
+        line = `${yellow}📤${reset} ${bold}${countdownStr}${reset} ${dim}(↵=send, type to edit)${reset}`;
         break;
 
       case 'sent':
@@ -209,9 +241,10 @@ export class TTYVisualizer {
 
   /**
    * Render recording state with waveform
+   * Writes waveform to file for statusline.sh to read
    */
   private renderRecording(): void {
-    if (this.ttyFd === null || this.state !== 'recording') return;
+    if (this.state !== 'recording') return;
 
     // Apply smoothing and decay
     for (let i = 0; i < BAR_COUNT; i++) {
@@ -222,33 +255,49 @@ export class TTYVisualizer {
       }
     }
 
-    const cyan = '\x1b[36m';
-    const red = '\x1b[31m';
-    const dim = '\x1b[2m';
-    const reset = '\x1b[0m';
-
     // Build waveform bars
     const bars = this.smoothedLevels.map(level => {
       const index = Math.min(BLOCKS.length - 1, Math.floor(level * BLOCKS.length));
       return BLOCKS[Math.max(0, index)];
     }).join('');
 
-    const line = `${red}🎤${reset} ${cyan}${bars}${reset} ${dim}(release ⌥ to send)${reset}`;
-    this.writeLineToTTY(line);
+    // Write to file for statusline.sh to read
+    try {
+      fs.writeFileSync('/tmp/claude-voice-waveform', bars);
+    } catch {
+      // Ignore write errors
+    }
+
+    // Also write directly to TTY at high frequency - positioned at bottom of screen
+    // Use save/restore cursor to avoid disrupting user input
+    if (this.ttyFd !== null) {
+      const cyan = '\x1b[38;5;81m';
+      const red = '\x1b[38;5;196m';
+      const reset = '\x1b[0m';
+      const indicator = `${red}●${reset} ${cyan}REC ${bars}${reset}`;
+
+      // Position at absolute bottom-right, then restore cursor
+      const output = `\x1b7\x1b[999;1H\x1b[2K${indicator}\x1b8`;
+      try {
+        fs.writeSync(this.ttyFd, output);
+      } catch {
+        // Ignore errors
+      }
+    }
   }
 
   /**
-   * Write to the Voice Ready area in Claude Code's status line
-   * Positions at column 46 on the Context Remaining line
+   * Write to the right side of the input line (❯ prompt line)
+   * The input is ~5 lines up from the bottom in Claude Code's layout
    */
   private writeLineToTTY(line: string): void {
     if (line === this.lastRenderedLine) return;
 
-    // Save cursor, move to status line, position at Voice Ready column
+    // Position: save cursor, move to bottom, up 5 lines (input line), column 60, write, restore
     this.writeTTY('\x1b7');           // Save cursor position
-    this.writeTTY('\x1b[999;1H');     // Move to bottom
-    this.writeTTY('\x1b[3A');         // Move up 3 lines (Context Remaining line)
-    this.writeTTY('\x1b[43G');        // Move to column 46 (where Voice Ready starts)
+    this.writeTTY('\x1b[999;1H');     // Move to bottom of screen
+    this.writeTTY('\x1b[5A');         // Move up 5 lines (to input prompt line)
+    this.writeTTY('\x1b[60G');        // Move to column 60 (right side)
     this.writeTTY('\x1b[K');          // Clear from cursor to end of line
     this.writeTTY(line);
     this.writeTTY('\x1b8');           // Restore cursor position
@@ -262,8 +311,8 @@ export class TTYVisualizer {
   private clearLine(): void {
     this.writeTTY('\x1b7');           // Save cursor
     this.writeTTY('\x1b[999;1H');     // Move to bottom
-    this.writeTTY('\x1b[3A');         // Move up 3 lines
-    this.writeTTY('\x1b[43G');        // Move to column 46
+    this.writeTTY('\x1b[5A');         // Move up 5 lines (input line)
+    this.writeTTY('\x1b[60G');        // Move to column 60
     this.writeTTY('\x1b[K');          // Clear to end of line
     this.writeTTY('\x1b8');           // Restore cursor
     this.lastRenderedLine = '';
@@ -311,6 +360,7 @@ export class TTYVisualizer {
   cleanup(): void {
     this.stop();
     this.cancelCountdown();
+    this.stopReadyIndicator();
     if (this.ttyFd !== null) {
       try {
         fs.closeSync(this.ttyFd);
