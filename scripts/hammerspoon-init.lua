@@ -14,8 +14,13 @@ local recordingAlert = nil
 local daemonStarting = false
 local currentDaemonPort = nil
 
--- Auto-submit mode (set to true for full voice conversation)
-local autoSubmitEnabled = true
+-- Countdown state
+local countdownTimer = nil
+local countdownSeconds = 3
+local pendingText = nil
+
+-- Auto-submit mode (false = show countdown, true = send immediately)
+local autoSubmitEnabled = false
 
 -- Set terminal title to show recording status
 local function setTerminalTitle(title)
@@ -331,6 +336,41 @@ local function pttStop()
     end
 end
 
+-- Cancel any pending countdown
+local function cancelCountdown()
+    if countdownTimer then
+        countdownTimer:stop()
+        countdownTimer = nil
+    end
+    pendingText = nil
+end
+
+-- Start countdown before sending
+local function startCountdown(text)
+    pendingText = text
+    local remaining = countdownSeconds
+
+    -- Type text first (without submitting)
+    typeText(text, false)
+
+    -- Show initial countdown
+    hs.alert.show("Sending in " .. remaining .. "... (Cmd+. to cancel)", 1)
+
+    countdownTimer = hs.timer.doEvery(1, function()
+        remaining = remaining - 1
+        if remaining > 0 then
+            hs.alert.show("Sending in " .. remaining .. "... (Cmd+. to cancel)", 1)
+        else
+            -- Countdown finished, submit
+            countdownTimer:stop()
+            countdownTimer = nil
+            pendingText = nil
+            hs.alert.show("Sent!", 0.5)
+            hs.eventtap.keyStroke({}, "return")
+        end
+    end)
+end
+
 -- Check for transcription result
 local transcriptionAttempts = 0
 function checkTranscription()
@@ -339,8 +379,15 @@ function checkTranscription()
             local text = body:gsub("^%s*(.-)%s*$", "%1") -- trim whitespace
             if text ~= "" then
                 print("Claude Voice: Got transcription: " .. text)
-                hs.alert.show("Typing: " .. text:sub(1, 50) .. "...", 1)
-                typeText(text, autoSubmitEnabled)
+
+                if autoSubmitEnabled then
+                    -- Immediate send
+                    hs.alert.show("Typing: " .. text:sub(1, 50) .. "...", 1)
+                    typeText(text, true)
+                else
+                    -- Countdown before send
+                    startCountdown(text)
+                end
                 transcriptionAttempts = 0
                 return
             end
@@ -362,7 +409,20 @@ end
 -- ============================================
 
 -- Cmd+. - Toggle recording (primary hotkey)
+-- Also cancels countdown if one is active
 hs.hotkey.bind({"cmd"}, ".", function()
+    -- If countdown is active, cancel it and clear the text
+    if countdownTimer then
+        cancelCountdown()
+        -- Select all and delete to clear the typed text
+        hs.eventtap.keyStroke({"cmd"}, "a")
+        hs.timer.doAfter(0.05, function()
+            hs.eventtap.keyStroke({}, "delete")
+        end)
+        hs.alert.show("Cancelled - edit your message or press Cmd+. to record again", 2)
+        return
+    end
+
     if pttActive then
         pttStop()
     else
@@ -383,9 +443,13 @@ end)
 hs.hotkey.bind({"cmd", "ctrl"}, "h", function()
     hs.alert.show([[
 Claude Voice Hotkeys:
-- Cmd+. - Toggle recording
+- Cmd+. - Start/stop recording
+- Cmd+. during countdown - Cancel and edit
 - Cmd+Ctrl+R - Reload config
-]], 5)
+
+Flow: Record → Text appears → 3s countdown → Auto-send
+Press Cmd+. during countdown to cancel and edit manually.
+]], 7)
 end)
 
 -- Notify ready
