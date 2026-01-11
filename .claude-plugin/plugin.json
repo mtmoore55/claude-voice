@@ -9,8 +9,5 @@
   "homepage": "https://github.com/mtmoore55/claude-voice",
   "repository": "https://github.com/mtmoore55/claude-voice",
   "keywords": ["voice", "audio", "speech", "accessibility", "hands-free"],
-  "license": "MIT",
-  "engines": {
-    "claude-code": ">=1.0.0"
-  }
+  "license": "MIT"
 }
