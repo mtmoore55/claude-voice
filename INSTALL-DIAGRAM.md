@@ -67,7 +67,7 @@
 │   ╔═══════════════════════════════════════════════════════════╗   │
 │   ║                  ACTIVE VOICE MODE                        ║   │
 │   ║                                                           ║   │
-│   ║   [Hold Right Option] → Speak → [Release] → Text sent    ║   │
+│   ║   [Press Right Option] → Speak → [Press again] → Sent    ║   │
 │   ║                                                           ║   │
 │   ║   ┌─────────────────────────────────────────────────────┐ ║   │
 │   ║   │  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~  ← Waveform        │ ║   │
@@ -89,7 +89,7 @@
 │   (You)     │    │  (hotkey detect) │    │  (port 17394)   │
 └──────┬──────┘    └────────┬─────────┘    └────────┬────────┘
        │                    │                       │
-       │ Hold Right Option  │                       │
+       │ Press Right Option │                       │
        │───────────────────>│                       │
        │                    │  HTTP POST /ptt/start │
        │                    │──────────────────────>│
@@ -99,7 +99,7 @@
        │                    │              │ Show Waveform   │
        │                    │              └────────┬────────┘
        │                    │                       │
-       │ Release Key        │                       │
+       │ Press Again        │                       │
        │───────────────────>│                       │
        │                    │  HTTP POST /ptt/stop  │
        │                    │──────────────────────>│
@@ -122,6 +122,6 @@
 | What | How |
 |------|-----|
 | Start voice | `claude-voice` |
-| Talk | Hold Right Option, speak, release |
+| Talk | Press Right Option, speak, press again |
 | Test setup | `claude-voice test` |
 | Reconfigure | `claude-voice setup` |

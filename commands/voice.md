@@ -70,7 +70,7 @@ Once everything is set up, tell the user:
 
 2. **Or enable in this session:** Run `claude-voice on` to add voice to your current session
 
-3. **To talk:** Hold **Right Option** key, speak, then release. Your speech is transcribed and sent to Claude.
+3. **To talk:** Press **Right Option** to start recording, speak, then press **Right Option** again to stop and send.
 
 Would you like me to start voice mode now?"
 

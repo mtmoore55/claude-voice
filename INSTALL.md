@@ -89,9 +89,9 @@ claude-voice
 
 ### How to Talk to Claude
 
-1. **Hold Right Option** - starts recording (you'll see a waveform)
+1. **Press Right Option** - starts recording (you'll see a waveform)
 2. **Speak** - say your prompt naturally
-3. **Release Right Option** - stops recording, transcribes, and sends to Claude
+3. **Press Right Option again** - stops recording, transcribes, and sends to Claude
 4. **Read** - Claude's response appears as text
 
 ---

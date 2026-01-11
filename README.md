@@ -18,16 +18,16 @@ That's it. The `/voice` command will guide you through setup.
 
 ## Features
 
-- **Push-to-Talk**: Hold Right Option to speak, release to send
+- **Toggle Recording**: Press Right Option to start, press again to send
 - **Local Speech-to-Text**: Uses whisper.cpp (no API key needed)
 - **Real-time Visualization**: Animated waveform while recording
 - **Hands-free Input**: Speak instead of type
 
 ## How It Works
 
-1. **Hold Right Option** - starts recording (you'll see a waveform)
+1. **Press Right Option** - starts recording (you'll see a waveform)
 2. **Speak** - say your prompt naturally
-3. **Release** - stops recording, transcribes, and sends to Claude
+3. **Press Right Option again** - stops recording, transcribes, and sends to Claude
 4. **Read** - Claude's response appears as text
 
 ## Requirements
